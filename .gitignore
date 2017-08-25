@@ -1,3 +1,10 @@
+# Garbage
+*~
+core
+.*.swp
+.gdb_history
+spork
+
 # Prerequisites
 *.d
 
