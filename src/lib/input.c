@@ -51,7 +51,7 @@ struct sp_input *sp_open_input_file(struct sp_mem_pool *pool, const char *filena
     return NULL;
   }
   in->source.file.f = f;
-  in->source.file.file_id = file_id;
+  in->source.file.id = file_id;
   return in;
 }
 

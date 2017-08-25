@@ -16,7 +16,7 @@ enum sp_input_type {
 
 struct sp_input_file {
   FILE *f;
-  uint16_t file_id;
+  uint16_t id;
 };
 
 struct sp_input_string {
@@ -45,6 +45,8 @@ struct sp_input *sp_new_input_string(struct sp_mem_pool *pool, const char *strin
 void sp_close_input(struct sp_input *in);
 int sp_input_fill_buffer_and_next_byte(struct sp_input *in);
 void sp_input_unget_byte(struct sp_input *in, uint8_t b);
+
+#define sp_get_input_file_id(in)  (((in)->type == SP_INPUT_FILE) ? (in)->source.file.id : (uint16_t)-1)
 
 #define sp_input_next_byte(in)                                          \
   (((in)->unget_size > 0) ? (in)->unget_buf[--(in)->unget_size] :       \

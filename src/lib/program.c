@@ -5,8 +5,9 @@
 
 #include "program.h"
 #include "input.h"
+#include "buffer.h"
 #include "ast.h"
-#include "tokenizer.h"
+#include "preprocessor.h"
 
 struct sp_program *sp_new_program(void)
 {
@@ -14,13 +15,13 @@ struct sp_program *sp_new_program(void)
   if (! prog)
     return NULL;
   prog->last_error_msg[0] = '\0';
-  sp_init_symtab(&prog->src_file_names, NULL);
+  sp_init_string_table(&prog->src_file_names, NULL);
   return prog;
 }
 
 void sp_free_program(struct sp_program *prog)
 {
-  sp_destroy_symtab(&prog->src_file_names);
+  //sp_destroy_string_table(&prog->src_file_names);
   free(prog);
 }
 
@@ -50,7 +51,7 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     goto err;
   }
 
-  sp_symbol_id file_id = sp_add_ast_file_name(ast, filename);
+  sp_string_id file_id = sp_add_ast_file_name(ast, filename);
   if (file_id < 0) {
     sp_set_error(prog, "out of memory");
     goto err;
@@ -65,12 +66,12 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
   struct sp_buffer tmp_buf;
   sp_init_buffer(&tmp_buf, &pool);
 
-  struct sp_tokenizer t;
-  sp_init_tokenizer(&t, prog, in, ast, &tmp_buf, in->source.file.file_id);
+  struct sp_preprocessor pp;
+  sp_init_preprocessor(&pp, prog, ast, in, &tmp_buf);
 
   struct sp_token tok;
   do {
-    if (sp_read_token(&t, &tok) < 0)
+    if (sp_read_token(&pp, &tok) < 0)
       goto err;
     printf("-> %s\n", sp_dump_token(ast, &tok));
   } while (! tok_is_eof(&tok));

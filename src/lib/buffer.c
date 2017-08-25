@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <string.h>
 
-#include "internal.h"
+#include "buffer.h"
 
 void sp_init_buffer(struct sp_buffer *buf, struct sp_mem_pool *pool)
 {

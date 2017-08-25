@@ -1,0 +1,35 @@
+/* punct.h */
+
+#ifndef PUNCT_H_FILE
+#define PUNCT_H_FILE
+
+enum {
+  PUNCT_ARROW = 256,
+  PUNCT_PLUSPLUS,
+  PUNCT_MINUSMINUS,
+  PUNCT_LSHIFT,
+  PUNCT_RSHIFT,
+  PUNCT_LEQ,
+  PUNCT_GEQ,
+  PUNCT_EQ,
+  PUNCT_NEQ,
+  PUNCT_AND,
+  PUNCT_OR,
+  PUNCT_ELLIPSIS,
+  PUNCT_MULEQ,
+  PUNCT_DIVEQ,
+  PUNCT_MODEQ,
+  PUNCT_PLUSEQ,
+  PUNCT_MINUSEQ,
+  PUNCT_LSHIFTEQ,
+  PUNCT_RSHIFTEQ,
+  PUNCT_ANDEQ,
+  PUNCT_XOREQ,
+  PUNCT_OREQ,
+  PUNCT_HASHES,
+};
+
+int sp_get_punct_id(char *name);
+const char *sp_get_punct_name(int punct_id);
+
+#endif /* PUNCT_H_FILE */

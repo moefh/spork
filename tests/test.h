@@ -1,1 +1,2 @@
-TEST(f,
+
+extern int printf(const char *fmt, ...);

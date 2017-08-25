@@ -1,21 +1,54 @@
-/* tokenizer.h */
+/* token.h */
 
-#ifndef TOKENIZER_H_FILE
-#define TOKENIZER_H_FILE
-
-#include "internal.h"
-
-#define TOKENIZER_BUF_SIZE 256
+#ifndef TOKEN_H_FILE
+#define TOKEN_H_FILE
 
 enum sp_token_type {
   TOK_EOF,
-  TOK_KEYWORD,
-  TOK_SYMBOL,
+
+  // pp-tokens
+  TOK_PP_NEWLINE,
+  TOK_PP_HEADER_NAME,
+  TOK_PP_NUMBER,
+  TOK_PP_CHAR_CONST,
+  TOK_PP_OTHER,
+
+  // pp-tokens + tokens
+  TOK_IDENTIFIER,
   TOK_STRING,
-  TOK_DOUBLE,
-  TOK_INT,
-  TOK_OP,
   TOK_PUNCT,
+
+  // tokens
+  TOK_KEYWORD,
+  TOK_INT_CONST,
+  TOK_FLOAT_CONST,
+  TOK_ENUM_CONST,
+};
+
+enum {
+  PUNCT_ARROW = 256,
+  PUNCT_PLUSPLUS,
+  PUNCT_MINUSMINUS,
+  PUNCT_LSHIFT,
+  PUNCT_RSHIFT,
+  PUNCT_LEQ,
+  PUNCT_GEQ,
+  PUNCT_EQ,
+  PUNCT_NEQ,
+  PUNCT_AND,
+  PUNCT_OR,
+  PUNCT_ELLIPSIS,
+  PUNCT_MULEQ,
+  PUNCT_DIVEQ,
+  PUNCT_MODEQ,
+  PUNCT_PLUSEQ,
+  PUNCT_MINUSEQ,
+  PUNCT_LSHIFTEQ,
+  PUNCT_RSHIFTEQ,
+  PUNCT_ANDEQ,
+  PUNCT_XOREQ,
+  PUNCT_OREQ,
+  PUNCT_HASHES,
 };
 
 enum sp_keyword_type {
@@ -60,36 +93,23 @@ struct sp_token {
   union {
     double d;
     uint64_t i;
-    sp_string_id str;
-    enum sp_keyword_type keyword;
-    sp_symbol_id symbol_id;
+    char c;
+    sp_string_id str_id;
     char op_name[4];
-    uint32_t punct;
+    int punct_id;
+
+    enum sp_keyword_type keyword;
   } data;
 };
 
-struct sp_tokenizer {
-  struct sp_program *prog;
-  struct sp_input *in;
-  struct sp_ast *ast;
-  struct sp_buffer *tmp;
-  uint16_t file_id;
-  bool at_line_start;
-
-  struct sp_src_loc cur_loc;
-  struct sp_src_loc last_err_loc;
-  struct sp_src_loc saved_loc;
-};
-
-void sp_init_tokenizer(struct sp_tokenizer *t, struct sp_program *prog, struct sp_input *in, struct sp_ast *ast, struct sp_buffer *tmp_buf, uint16_t file_id);
-int sp_read_token(struct sp_tokenizer *t, struct sp_token *tok);
-struct sp_src_loc sp_get_tokenizer_error_loc(struct sp_tokenizer *t);
 const char *sp_get_token_keyword(struct sp_token *tok);
-const char *sp_get_token_symbol(struct sp_ast *ast, struct sp_token *tok);
-const char *sp_get_token_string(struct sp_ast *ast, struct sp_token *tok);
 const char *sp_get_token_op(struct sp_token *tok);
-
+const char *sp_get_token_string(struct sp_ast *ast, struct sp_token *tok);
+bool sp_find_keyword(const void *string, int size, enum sp_keyword_type *ret);
 const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok);
+
+int sp_get_punct_id(char *name);
+const char *sp_get_punct_name(int punct_id);
 
 #define tok_is_eof(tok)          ((tok)->type == TOK_EOF)
 #define tok_is_number(tok)       ((tok)->type == TOK_NUMBER)
@@ -98,4 +118,4 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok);
 #define tok_is_keyword(tok, kw)  ((tok)->type == TOK_KEYWORD && (tok)->data.keyword == (kw))
 #define tok_is_symbol(tok)       ((tok)->type == TOK_SYMBOL)
 
-#endif /* TOKENIZER_H_FILE */
+#endif /* TOKEN_H_FILE */

@@ -7,7 +7,7 @@
 
 struct sp_program {
   char last_error_msg[256];
-  struct sp_symtab src_file_names;
+  struct sp_string_table src_file_names;
 };
 
 #endif /* PROGRAM_H_FILE */

@@ -3,6 +3,8 @@
 #ifndef MEM_POOL_H_FILE
 #define MEM_POOL_H_FILE
 
+#include <stddef.h>
+
 struct sp_mem_page;
 
 struct sp_mem_pool {

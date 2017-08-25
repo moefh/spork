@@ -2,10 +2,7 @@
 
 #include <stdio.h>
 
-#include "lib/internal.h"
-#include "lib/input.h"
-#include "lib/program.h"
-#include "lib/tokenizer.h"
+#include <spork.h>
 
 void run(const char *filename)
 {
