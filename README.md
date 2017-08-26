@@ -1,4 +1,4 @@
-# spork
+# Spork
 
 A toy interpreter for the C language in the very early stages.
 
@@ -12,15 +12,15 @@ A toy interpreter for the C language in the very early stages.
 
 ## Name
 
-Why "spork"?
+Why "Spork"?
 
-Sporks are in the awkward middle-ground between a fork and a spoon:
-its prongs are not sharp enough to stab, and it's not as useful as a
-spoon to eat soup.
+A spork is in the awkward middle-ground between a fork and a spoon:
+its prongs are not sharp enough to stab, and it doesn't hold soup as
+well as a spoon.
 
-Likewise, this project is in the awkward middle-ground of low-level
-and high-level. It doesn't offer the speed and control of native
-compilation, nor does it offer the convenience of high level
+Likewise, this project is in the awkward middle-ground between
+low-level and high-level. It doesn't offer the speed and control of
+native compilation, nor does it offer the convenience of high level
 languages, like automatic memory management.
 
 ## License
