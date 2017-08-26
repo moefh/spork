@@ -21,7 +21,7 @@ struct sp_src_loc {
 uint32_t sp_hash(const void *data, size_t len);
 int sp_utf8_len(char *str, size_t size);
 void sp_dump_string(const char *str);
-
+void sp_dump_char(char c);
 
 void sp_init_program(struct sp_program *prog);
 

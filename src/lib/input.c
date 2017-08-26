@@ -11,6 +11,7 @@ static struct sp_input *new_input(struct sp_mem_pool *pool, enum sp_input_type t
   if (! in)
     return NULL;
   in->next = NULL;
+  in->pool = pool;
   in->buf_size = 0;
   in->buf_pos = 0;
   in->unget_size = 0;
@@ -72,6 +73,7 @@ void sp_close_input(struct sp_input *in)
   case SP_INPUT_FILE: fclose(in->source.file.f); return;
   case SP_INPUT_STRING: return;
   }
+  sp_free(in->pool, in);
 }
 
 int sp_input_fill_buffer_and_next_byte(struct sp_input *in)

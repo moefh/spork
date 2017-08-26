@@ -14,6 +14,13 @@ void sp_init_string_table(struct sp_string_table *s, struct sp_mem_pool *pool)
   s->entries = NULL;
 }
 
+void sp_destroy_string_table(struct sp_string_table *s)
+{
+  for (int i = 0; i < s->num; i++)
+    sp_free(s->pool, s->entries[i]);
+  sp_free(s->pool, s->entries);
+}
+
 sp_string_id sp_add_string(struct sp_string_table *s, const char *str)
 {
   sp_string_id cur = sp_lookup_string(s, str);
@@ -29,7 +36,7 @@ sp_string_id sp_add_string(struct sp_string_table *s, const char *str)
     s->cap = new_cap;
   }
 
-  size_t len = strlen(str);
+  size_t len = strlen(str) + 1;
   s->entries[s->num] = sp_malloc(s->pool, len);
   if (! s->entries[s->num])
     return -1;

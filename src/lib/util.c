@@ -32,6 +32,16 @@ uint32_t sp_hash(const void *data, size_t len)
   return r;
 }
 
+void sp_dump_char(char c)
+{
+  if (c == '\n')
+    printf(":: '\\n'\n");
+  else if (c >= 32 && c < 127)
+    printf(":: '%c'\n", c);
+  else
+    printf(":: '\\x%02x'", (unsigned char) c);
+}
+
 void sp_dump_string(const char *str)
 {
   printf("\"");

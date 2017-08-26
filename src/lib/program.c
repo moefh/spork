@@ -21,7 +21,7 @@ struct sp_program *sp_new_program(void)
 
 void sp_free_program(struct sp_program *prog)
 {
-  //sp_destroy_string_table(&prog->src_file_names);
+  sp_destroy_string_table(&prog->src_file_names);
   free(prog);
 }
 
@@ -75,6 +75,11 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
       goto err;
     printf("-> %s\n", sp_dump_token(ast, &tok));
   } while (! tok_is_eof(&tok));
+
+  if (pp.macros.len > 0) {
+    printf("// macros:\n");
+    sp_dump_macros(&pp);
+  }
 
   sp_close_input(in);
   sp_destroy_mem_pool(&pool);

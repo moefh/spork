@@ -27,6 +27,7 @@ struct sp_input_string {
 
 struct sp_input {
   struct sp_input *next;
+  struct sp_mem_pool *pool;
   int buf_size;
   int buf_pos;
   uint8_t buf[INPUT_BUF_SIZE];

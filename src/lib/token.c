@@ -187,10 +187,10 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
     return str;
 
   case TOK_PP_CHAR_CONST:
-    if (tok->data.c >= 32 && tok->data.c <= 127)
+    if (tok->data.c >= 32 && tok->data.c < 127)
       snprintf(str, sizeof(str), "%c", tok->data.c);
     else
-      snprintf(str, sizeof(str), "'\\%02x'", (unsigned char) tok->data.c);
+      snprintf(str, sizeof(str), "'\\x%02x'", (unsigned char) tok->data.c);
     return str;
     
   case TOK_IDENTIFIER:

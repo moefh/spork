@@ -88,6 +88,7 @@ enum sp_keyword_type {
 };
 
 struct sp_token {
+  struct sp_token *next;
   enum sp_token_type type;
   struct sp_src_loc loc;
   union {

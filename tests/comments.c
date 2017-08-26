@@ -9,5 +9,13 @@ x
 ;
 a/* x */b;
 
-// this comments the next line too: \
-this is surprisingly also a comment
+// this is a comment \
+this is surprisingly also a comment \ 
+and so is this \\
+this too \\\
+and this \ more comment \
+also this \.
+"this is not a comment"
+
+a \   
+b

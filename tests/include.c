@@ -1,3 +1,3 @@
 #define TEST(name,val) int name() { return val; }
-#include <include.h>
+#include "include.h"
 1)

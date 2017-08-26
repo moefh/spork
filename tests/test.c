@@ -1,5 +1,10 @@
 
-#include <test.h>
+#include "test.h"
+
+#define SIZE     256
+#define ROUND(x) (((x+SIZE)/SIZE)*SIZE)
+
+#undef SIZE
 
 int main(void)
 {
