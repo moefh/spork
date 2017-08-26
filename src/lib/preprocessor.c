@@ -455,41 +455,65 @@ static int process_include(struct sp_preprocessor *pp)
   return 0;
 }
 
-static int read_macro_body(struct sp_preprocessor *pp, struct sp_token **ret)
+static int read_macro_body(struct sp_preprocessor *pp, struct sp_macro_def *macro_def)
 {
   struct sp_token *list = NULL;
   struct sp_token **cur = &list;
-  
+
+  bool is_variadic = false;
+  for (struct sp_token *t = macro_def->params; t != NULL; t = t->next) {
+    if (t->type == TOK_PUNCT && t->data.punct_id == PUNCT_ELLIPSIS) {
+      is_variadic = true;
+      break;
+    }
+  }
+
   while (true) {
     NEXT_TOKEN();
     if (IS_NEWLINE())
       break;
-#if 0
-    struct sp_token *tok = sp_malloc(pp->ast->pool, sizeof(struct sp_token));
-    if (! tok) {
-      set_error(pp, "out of memory");
-      return -1;
+    if ((! is_variadic) && IS_IDENTIFIER()) {
+      const char *ident = sp_get_token_string(pp->ast, &pp->tok);
+      if (strcmp(ident, "__VA_ARGS__") == 0)
+        return set_error(pp, "__VA_ARGS__ is only allowed in variadic macros");
     }
-    *tok = pp->tok;
-    tok->next = NULL;
-    *cur = tok;
-    cur = &tok->next;
-#else
     *cur = sp_malloc(pp->ast->pool, sizeof(struct sp_token));
-    if (! *cur) {
-      set_error(pp, "out of memory");
-      return -1;
-    }
+    if (! *cur)
+      return set_error(pp, "out of memory");
     **cur = pp->tok;
     (*cur)->next = NULL;
     cur = &(*cur)->next;
-#endif
   }
-  *ret = list;
+
+  // check if all # and ## are valid
+  if (list && tok_is_punct(list, PUNCT_HASHES))
+    return set_error(pp, "## is not allowed at the start of macro body");
+  for (struct sp_token *t = list; t != NULL; t = t->next) {
+    if (tok_is_punct(t, PUNCT_HASHES)) {
+      if (! t->next)
+        return set_error(pp, "## is not allowed at the end of macro body");
+    }
+  
+    if (tok_is_punct(t, '#')) {
+      bool next_is_argument = false;
+      if (t->next && tok_is_identifier(t->next)) {
+        for (struct sp_token *param = macro_def->params; param != NULL; param = param->next) {
+          if (tok_is_identifier(param) && t->next->data.str_id == param->data.str_id) {
+            next_is_argument = true;
+            break;
+          }
+        }
+      }
+      if (! next_is_argument)
+        return set_error(pp, "# must be followed by a parameter name");
+    }
+  }
+
+  macro_def->body = list;
   return 0;
 }
 
-static int read_macro_params(struct sp_preprocessor *pp, struct sp_token **ret)
+static int read_macro_params(struct sp_preprocessor *pp, struct sp_macro_def *macro_def)
 {
   struct sp_token *list = NULL;
   struct sp_token **cur = &list;
@@ -506,6 +530,14 @@ static int read_macro_params(struct sp_preprocessor *pp, struct sp_token **ret)
       break;
     if (! IS_IDENTIFIER() && ! IS_PUNCT(PUNCT_ELLIPSIS))
       return set_error(pp, "invalid macro parameter: '%s'", sp_dump_token(pp->ast, &pp->tok));
+    if (IS_IDENTIFIER()) {
+      // check if there's a parameter with the same name
+      for (struct sp_token *t = list; t != NULL; t = t->next) {
+        if (tok_is_identifier(t) && t->data.str_id == pp->tok.data.str_id)
+          return set_error(pp, "duplicate parameter name: '%s'", sp_dump_token(pp->ast, t));
+      }
+    }
+    
     *cur = sp_malloc(pp->ast->pool, sizeof(struct sp_token));
     if (! *cur) {
       set_error(pp, "out of memory");
@@ -527,7 +559,8 @@ static int read_macro_params(struct sp_preprocessor *pp, struct sp_token **ret)
       continue;
     return set_error(pp, "expected ',' or ')'");
   }
-  *ret = list;
+
+  macro_def->params = list;
   return 0;
 }
 
@@ -562,13 +595,13 @@ static int process_define(struct sp_preprocessor *pp)
   if (c >= 0)
     unread_byte(pp, c);
 
-  if (macro_def->is_function) {
-    if (read_macro_params(pp, &macro_def->params) < 0)
-      return -1;
-  } else {
+  if (! macro_def->is_function)
     macro_def->params = NULL;
+  else {
+    if (read_macro_params(pp, macro_def) < 0)
+      return -1;
   }
-  if (read_macro_body(pp, &macro_def->body) < 0)
+  if (read_macro_body(pp, macro_def) < 0)
     return -1;
   if (sp_add_ht_entry(&pp->macros, macro_name, strlen(macro_name)+1, macro_def) < 0)
     return set_error(pp, "out of memory");

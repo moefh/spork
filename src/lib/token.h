@@ -115,8 +115,8 @@ const char *sp_get_punct_name(int punct_id);
 #define tok_is_eof(tok)          ((tok)->type == TOK_EOF)
 #define tok_is_number(tok)       ((tok)->type == TOK_NUMBER)
 #define tok_is_string(tok)       ((tok)->type == TOK_STRING)
-#define tok_is_punct(tok, p)     ((tok)->type == TOK_PUNCT && (tok)->data.punct == (p))
+#define tok_is_punct(tok, p)     ((tok)->type == TOK_PUNCT && (tok)->data.punct_id == (p))
 #define tok_is_keyword(tok, kw)  ((tok)->type == TOK_KEYWORD && (tok)->data.keyword == (kw))
-#define tok_is_symbol(tok)       ((tok)->type == TOK_SYMBOL)
+#define tok_is_identifier(tok)   ((tok)->type == TOK_IDENTIFIER)
 
 #endif /* TOKEN_H_FILE */

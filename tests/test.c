@@ -4,7 +4,7 @@
 #define SIZE     256
 #define ROUND(x) (((x+SIZE)/SIZE)*SIZE)
 
-#undef SIZE
+#define X(a,b,...)  a##b, #b
 
 int main(void)
 {
