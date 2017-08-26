@@ -14,7 +14,8 @@ static int find_slot(struct sp_hashtable *ht, const void *key, size_t key_len)
 {
   //printf("calculating hash of '%s' with len=%zu\n", (char*)key, key_len);
   int i = HASH(ht, key, key_len);
-  while (OCCUPIED(&ht->entries[i]) && memcmp(key, ht->entries[i].key, key_len) != 0)
+  while (OCCUPIED(&ht->entries[i]) && ((key_len != ht->entries[i].key_len)
+                                       || memcmp(key, ht->entries[i].key, key_len) != 0))
     i = (i+1) & (ht->cap-1);
   return i;
 }

@@ -68,16 +68,22 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
   }
 
   sp_set_preprocessor_io(&pp, file, ast);
+  printf("===================================\n");
   struct sp_token tok;
   do {
     if (sp_read_token(&pp, &tok) < 0)
       goto err;
-    printf("-> %s\n", sp_dump_token(ast, &tok));
+    printf("%s ", sp_dump_token(ast, &tok));
+    if (tok.type == TOK_PUNCT && tok.data.punct_id == ';')
+      printf("\n");
   } while (! tok_is_eof(&tok));
+  printf("\n");
+  printf("===================================\n");
 
   if (pp.macros.len > 0) {
     printf("// macros:\n");
     sp_dump_macros(&pp);
+    printf("===================================\n");
   }
 
   sp_close_input(file);

@@ -7,6 +7,7 @@
 #include "input.h"
 #include "ast.h"
 #include "token.h"
+#include "token_list.h"
 #include "buffer.h"
 #include "hashtable.h"
 
@@ -18,8 +19,9 @@ struct sp_macro_arg {
 struct sp_macro_def {
   sp_string_id name_id;
   bool is_function;
-  struct sp_token *params;
-  struct sp_token *body;
+  bool enabled;
+  struct sp_token_list params;
+  struct sp_token_list body;
 };
 
 struct sp_preprocessor {
@@ -33,9 +35,7 @@ struct sp_preprocessor {
   struct sp_hashtable macros;
   struct sp_buffer tmp_buf;
 
-  struct sp_macro_def *expanding_macro;
-  struct sp_macro_arg *expanding_args;
-  struct sp_token *next_expanded_token;
+  struct sp_token_list macro_expansion;
 
   bool at_newline;
   struct sp_token tok;
