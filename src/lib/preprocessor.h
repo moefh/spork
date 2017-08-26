@@ -10,6 +10,18 @@
 #include "buffer.h"
 #include "hashtable.h"
 
+struct sp_macro_arg {
+  struct sp_macro_arg_list *next;
+  struct sp_token *arg;
+};
+
+struct sp_macro_def {
+  sp_string_id name_id;
+  bool is_function;
+  struct sp_token *params;
+  struct sp_token *body;
+};
+
 struct sp_preprocessor {
   struct sp_program *prog;
   struct sp_ast *ast;
@@ -20,7 +32,11 @@ struct sp_preprocessor {
   
   struct sp_hashtable macros;
   struct sp_buffer tmp_buf;
-  
+
+  struct sp_macro_def *expanding_macro;
+  struct sp_macro_arg *expanding_args;
+  struct sp_token *next_expanded_token;
+
   bool at_newline;
   struct sp_token tok;
   struct sp_src_loc loc;

@@ -8,7 +8,7 @@
 #include "string_tab.h"
 
 #define ARRAY_SIZE(a)  ((int)(sizeof(a)/sizeof((a)[0])))
-
+#define UNUSED(v)      ((void)(v))
 
 struct sp_src_loc {
   uint16_t line;

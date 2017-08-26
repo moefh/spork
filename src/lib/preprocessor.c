@@ -16,12 +16,6 @@
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
 #define IS_ALNUM(c) (IS_ALPHA(c) || IS_DIGIT(c))
 
-struct sp_macro_def {
-  bool is_function;
-  struct sp_token *params;
-  struct sp_token *body;
-};
-
 enum pp_directive_type {
   PP_DIR_if,
   PP_DIR_ifdef,
@@ -62,6 +56,9 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->pool = pool;
   pp->in = NULL;
   pp->ast = NULL;
+  pp->expanding_macro = NULL;
+  pp->next_expanded_token = NULL;
+  pp->expanding_args = NULL;
   pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
   sp_init_ht(&pp->macros, pool);
@@ -601,6 +598,7 @@ static int process_define(struct sp_preprocessor *pp)
   struct sp_macro_def *macro_def = sp_malloc(pp->pool, sizeof(struct sp_macro_def));
   if (! macro_def)
     return set_error(pp, "out of memory");
+  macro_def->name_id = pp->tok.data.str_id;
   
   int c = read_byte(pp);
   macro_def->is_function = (c == '(');
@@ -653,8 +651,43 @@ static int process_pp_directive(struct sp_preprocessor *pp)
   return set_error(pp, "invalid preprocessor directive: '#%s'", directive_name);
 }
 
+static int expand_macro(struct sp_preprocessor *pp)
+{
+  if (! pp->next_expanded_token) {
+    pp->expanding_macro = NULL;
+    pp->expanding_args = NULL;
+    return 1;
+  }
+  if (pp->expanding_macro->is_function)
+    return set_error(pp, "function-macro expansion not implemented!");
+  pp->tok = *pp->next_expanded_token;
+  pp->next_expanded_token = pp->tok.next;
+  return 0;
+}
+
+static int setup_macro_expansion(struct sp_preprocessor *pp, struct sp_macro_def *macro)
+{
+  if (! macro->is_function) {
+    pp->expanding_macro = macro;
+    pp->next_expanded_token = macro->body;
+    return expand_macro(pp);
+  }
+
+  sp_clear_mem_pool(&pp->macro_exp_pool);
+  //pp->expanding_args = ...read macro args using pp->macro_exp_pool...;
+  pp->expanding_macro = macro;
+  pp->next_expanded_token = macro->body;
+  return set_error(pp, "function-macro expansion not implemented!");
+}
+
 static int next_expanded_token(struct sp_preprocessor *pp)
 {
+  if (pp->expanding_macro) {
+    int exp = expand_macro(pp);
+    if (exp <= 0)
+      return exp;
+  }
+
   while (true) {
     NEXT_TOKEN();
     if (IS_NEWLINE()) {
@@ -683,12 +716,35 @@ static int next_expanded_token(struct sp_preprocessor *pp)
       continue;
     }
 
-    // TODO: handle macro expansion
-    pp->at_newline = 0;
+    pp->at_newline = false;
+
+    if (tok_is_identifier(&pp->tok)) {
+      const char *macro_name = sp_get_token_string(pp->ast, &pp->tok);
+      struct sp_macro_def *macro = sp_get_ht_value(&pp->macros, macro_name, strlen(macro_name)+1);
+      if (macro) {
+        bool expand_macro = true;
+        if (macro->is_function) {
+          int c = 0;
+          if (next_byte(pp, &c) < 0)
+            return -1;
+          if (c != '(')
+            expand_macro = false;
+          if (c >= 0)
+            unread_byte(pp, c);
+        }
+
+        if (expand_macro) {
+          int exp = setup_macro_expansion(pp, macro);
+          if (exp <= 0)
+            return exp;
+          continue;
+        }
+      }
+    }
+    
     return 0;
   }
 }
-
 
 int sp_read_token(struct sp_preprocessor *pp, struct sp_token *tok)
 {
