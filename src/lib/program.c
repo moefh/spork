@@ -41,9 +41,13 @@ int sp_set_error(struct sp_program *prog, const char *fmt, ...)
 
 int sp_compile_program(struct sp_program *prog, const char *filename)
 {
-  struct sp_input *in = NULL;
+  struct sp_input *file = NULL;
+
   struct sp_mem_pool pool;
   sp_init_mem_pool(&pool);
+
+  struct sp_preprocessor pp;
+  sp_init_preprocessor(&pp, prog, &pool);
 
   struct sp_ast *ast = sp_new_ast(&pool, &prog->src_file_names);
   if (! ast) {
@@ -57,18 +61,13 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     goto err;
   }
   
-  in = sp_open_input_file(&pool, filename, (uint16_t) file_id, NULL);
-  if (! in) {
+  file = sp_open_input_file(ast->pool, filename, (uint16_t) file_id, NULL);
+  if (! file) {
     sp_set_error(prog, "can't open '%s'", filename);
     goto err;
   }
 
-  struct sp_buffer tmp_buf;
-  sp_init_buffer(&tmp_buf, &pool);
-
-  struct sp_preprocessor pp;
-  sp_init_preprocessor(&pp, prog, ast, in, &tmp_buf);
-
+  sp_set_preprocessor_io(&pp, file, ast);
   struct sp_token tok;
   do {
     if (sp_read_token(&pp, &tok) < 0)
@@ -81,13 +80,15 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     sp_dump_macros(&pp);
   }
 
-  sp_close_input(in);
+  sp_close_input(file);
+  sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return 0;
       
  err:
-  if (in)
-    sp_close_input(in);
+  if (file)
+    sp_close_input(file);
+  sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return -1;
 }

@@ -14,6 +14,7 @@ struct sp_mem_pool {
 
 void sp_init_mem_pool(struct sp_mem_pool *p);
 void sp_destroy_mem_pool(struct sp_mem_pool *p);
+void sp_clear_mem_pool(struct sp_mem_pool *p);
 void *sp_malloc(struct sp_mem_pool *p, size_t size);
 void *sp_realloc(struct sp_mem_pool *p, void *data, size_t size);
 

@@ -41,6 +41,22 @@ void sp_destroy_mem_pool(struct sp_mem_pool *p)
   }
 }
 
+void sp_clear_mem_pool(struct sp_mem_pool *p)
+{
+  if (! p->page_list)
+    return;
+
+  struct sp_mem_page *page = p->page_list->next;
+  while (page != NULL) {
+    struct sp_mem_page *next = page->next;
+    free(page);
+    page = next;
+  }
+  p->page_list->next = NULL;
+  p->page_list->free = (char *)(p->page_list) + ALIGN(sizeof(struct sp_mem_page));
+  p->page_list->free_size = p->page_size - ALIGN(sizeof(struct sp_mem_page));
+}
+
 void *sp_malloc(struct sp_mem_pool *p, size_t size)
 {
   if (! p)

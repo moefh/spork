@@ -13,18 +13,22 @@
 struct sp_preprocessor {
   struct sp_program *prog;
   struct sp_ast *ast;
-  struct sp_buffer *tmp;
   struct sp_input *in;
 
+  struct sp_mem_pool *pool;
+  struct sp_mem_pool macro_exp_pool;
+  
   struct sp_hashtable macros;
+  struct sp_buffer tmp_buf;
+  
   bool at_newline;
   struct sp_token tok;
-  struct sp_src_loc cur_loc;
-  struct sp_src_loc last_err_loc;
-  struct sp_src_loc saved_loc;
+  struct sp_src_loc loc;
 };
 
-void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_ast *ast, struct sp_input *in, struct sp_buffer *tmp_buf);
+void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
+void sp_destroy_preprocessor(struct sp_preprocessor *pp);
+void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
 int sp_read_token(struct sp_preprocessor *pp, struct sp_token *tok);
 void sp_dump_macros(struct sp_preprocessor *pp);
 

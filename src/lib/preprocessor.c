@@ -56,16 +56,30 @@ static const struct pp_directive {
   ADD_PP_DIR(pragma),
 };
 
-void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_ast *ast, struct sp_input *in, struct sp_buffer *tmp_buf)
+void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool)
 {
   pp->prog = prog;
+  pp->pool = pool;
+  pp->in = NULL;
+  pp->ast = NULL;
+  pp->loc = sp_make_src_loc(0,0,0);
+  pp->at_newline = false;
+  sp_init_ht(&pp->macros, pool);
+  sp_init_buffer(&pp->tmp_buf, pool);
+  sp_init_mem_pool(&pp->macro_exp_pool);
+}
+
+void sp_destroy_preprocessor(struct sp_preprocessor *pp)
+{
+  sp_destroy_mem_pool(&pp->macro_exp_pool);
+}
+
+void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast)
+{
   pp->in = in;
   pp->ast = ast;
-  pp->tmp = tmp_buf;
-  pp->cur_loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
-  pp->last_err_loc = pp->cur_loc;
+  pp->loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
   pp->at_newline = true;
-  sp_init_ht(&pp->macros, ast->pool);
 }
 
 static int set_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char *fmt, ...)
@@ -77,7 +91,6 @@ static int set_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char 
   va_end(ap);
 
   sp_set_error(pp->prog, "%s:%d:%d: %s", sp_get_ast_file_name(pp->ast, loc.file_id), loc.line, loc.col, str);
-  pp->last_err_loc = loc;
   return -1;
 }
 
@@ -90,7 +103,6 @@ static int set_error(struct sp_preprocessor *pp, char *fmt, ...)
   va_end(ap);
 
   sp_set_error(pp->prog, "%s:%d:%d: %s", sp_get_ast_file_name(pp->ast, pp->tok.loc.file_id), pp->tok.loc.line, pp->tok.loc.col, str);
-  pp->last_err_loc = pp->tok.loc;
   return -1;
 }
 
@@ -133,10 +145,10 @@ static int get_byte(struct sp_preprocessor *pp)
   if (c < 0)
     return -1;
   if (c == '\n') {
-    pp->cur_loc.line++;
-    pp->cur_loc.col = 1;
+    pp->loc.line++;
+    pp->loc.col = 1;
   } else
-    pp->cur_loc.col++;
+    pp->loc.col++;
   return c;
 }
 
@@ -225,34 +237,34 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
     return -1;
   if (c < 0) {
     pp->tok.type = TOK_EOF;
-    pp->tok.loc = pp->cur_loc;
+    pp->tok.loc = pp->loc;
     return 0;
   }
   
-  pp->tok.loc = pp->cur_loc;
+  pp->tok.loc = pp->loc;
 
   // newline
   if (c == '\n') {
     pp->tok.type = TOK_PP_NEWLINE;
-    pp->tok.loc = pp->cur_loc;
+    pp->tok.loc = pp->loc;
     return 0;
   }
   
   // header
   if (c == '<' && parse_header) {
-    pp->tmp->size = 0;
+    pp->tmp_buf.size = 0;
     while (1) {
       c = read_byte(pp);
       if (c < 0)
         return set_error(pp, "unterminated string");
       if (c == '>')
         break;
-      if (sp_buf_add_byte(pp->tmp, c) < 0)
+      if (sp_buf_add_byte(&pp->tmp_buf, c) < 0)
         return set_error(pp, "out of memory");
     }
-    if (sp_buf_add_byte(pp->tmp, '\0') < 0)
+    if (sp_buf_add_byte(&pp->tmp_buf, '\0') < 0)
       return set_error(pp, "out of memory");
-    sp_string_id str_id = sp_add_string(&pp->ast->strings, pp->tmp->p);
+    sp_string_id str_id = sp_add_string(&pp->ast->strings, pp->tmp_buf.p);
     if (str_id < 0)
       return set_error(pp, "out of memory");
     pp->tok.type = TOK_PP_HEADER_NAME;
@@ -262,7 +274,7 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
   
   // string
   if (c == '"') {
-    pp->tmp->size = 0;
+    pp->tmp_buf.size = 0;
     while (1) {
       c = read_byte(pp);
       if (c < 0)
@@ -282,16 +294,16 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
         case 't': c = '\t'; break;
         case 'r': c = '\r'; break;
         default:
-          return set_error_at(pp, pp->cur_loc, "bad escape sequence");
+          return set_error_at(pp, pp->loc, "bad escape sequence");
         }
       }
-      if (sp_buf_add_byte(pp->tmp, c) < 0)
+      if (sp_buf_add_byte(&pp->tmp_buf, c) < 0)
         return set_error(pp, "out of memory");
     }
 
-    if (sp_buf_add_byte(pp->tmp, '\0') < 0)
+    if (sp_buf_add_byte(&pp->tmp_buf, '\0') < 0)
       return set_error(pp, "out of memory");
-    sp_string_id str_id = sp_add_string(&pp->ast->strings, pp->tmp->p);
+    sp_string_id str_id = sp_add_string(&pp->ast->strings, pp->tmp_buf.p);
     if (str_id < 0)
       return set_error(pp, "out of memory");
     pp->tok.type = TOK_STRING;
@@ -303,7 +315,7 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
   
   // number
   if (IS_DIGIT(c)) {
-    pp->tmp->size = 0;
+    pp->tmp_buf.size = 0;
     int got_point = 0;
     while (IS_DIGIT(c) || c == '.') {
       if (c == '.') {
@@ -311,19 +323,19 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
           break;
         got_point = 1;
       }
-      if (sp_buf_add_byte(pp->tmp, c) < 0)
+      if (sp_buf_add_byte(&pp->tmp_buf, c) < 0)
         return set_error(pp, "out of memory");
       c = read_byte(pp);
     }
     if (c >= 0)
       unread_byte(pp, c);
 
-    if (sp_buf_add_byte(pp->tmp, '\0') < 0)
+    if (sp_buf_add_byte(&pp->tmp_buf, '\0') < 0)
       return set_error(pp, "out of memory");
     
     char *end = NULL;
-    double num = strtod(pp->tmp->p, &end);
-    if (pp->tmp->p == end)
+    double num = strtod(pp->tmp_buf.p, &end);
+    if (pp->tmp_buf.p == end)
       return set_error(pp, "invalid number");
     pp->tok.type = TOK_PP_NUMBER;
     pp->tok.data.d = num;
@@ -332,18 +344,18 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
 
   // identifier
   if (IS_ALPHA(c)) {
-    pp->tmp->size = 0;
+    pp->tmp_buf.size = 0;
     while (IS_ALNUM(c)) {
-      if (sp_buf_add_byte(pp->tmp, c) < 0)
+      if (sp_buf_add_byte(&pp->tmp_buf, c) < 0)
         return set_error(pp, "out of memory");
       c = read_byte(pp);
     }
     if (c >= 0)
       unread_byte(pp, c);
 
-    if (sp_buf_add_byte(pp->tmp, '\0') < 0)
+    if (sp_buf_add_byte(&pp->tmp_buf, '\0') < 0)
       return set_error(pp, "out of memory");
-    sp_string_id ident_id = sp_add_string(&pp->ast->strings, pp->tmp->p);
+    sp_string_id ident_id = sp_add_string(&pp->ast->strings, pp->tmp_buf.p);
     if (ident_id < 0)
       return set_error(pp, "out of memory");
     pp->tok.type = TOK_IDENTIFIER;
@@ -369,7 +381,7 @@ static int next_token(struct sp_preprocessor *pp, bool parse_header)
   }
 
   // punctuation
-  struct sp_src_loc start_loc = pp->cur_loc;
+  struct sp_src_loc start_loc = pp->loc;
   char punct_name[4] = { c };
   int punct_len = 1;
   while (1) {
@@ -446,7 +458,7 @@ static int process_include(struct sp_preprocessor *pp)
     return set_error(pp, "out of memory");
 
   // TODO: search file in pre-defined directories
-  struct sp_input *in = sp_open_input_file(pp->ast->pool, filename, (uint16_t) file_id, base_filename);
+  struct sp_input *in = sp_open_input_file(pp->pool, filename, (uint16_t) file_id, base_filename);
   if (! in)
     return set_error(pp, "can't open '%s'", filename);
   in->next = pp->in;
@@ -477,7 +489,7 @@ static int read_macro_body(struct sp_preprocessor *pp, struct sp_macro_def *macr
       if (strcmp(ident, "__VA_ARGS__") == 0)
         return set_error(pp, "__VA_ARGS__ is only allowed in variadic macros");
     }
-    *cur = sp_malloc(pp->ast->pool, sizeof(struct sp_token));
+    *cur = sp_malloc(pp->pool, sizeof(struct sp_token));
     if (! *cur)
       return set_error(pp, "out of memory");
     **cur = pp->tok;
@@ -538,7 +550,7 @@ static int read_macro_params(struct sp_preprocessor *pp, struct sp_macro_def *ma
       }
     }
     
-    *cur = sp_malloc(pp->ast->pool, sizeof(struct sp_token));
+    *cur = sp_malloc(pp->pool, sizeof(struct sp_token));
     if (! *cur) {
       set_error(pp, "out of memory");
       return -1;
@@ -586,7 +598,7 @@ static int process_define(struct sp_preprocessor *pp)
     return set_error(pp, "macro name must be an identifier, found '%s'", sp_dump_token(pp->ast, &pp->tok));
   
   const char *macro_name = sp_get_token_string(pp->ast, &pp->tok);
-  struct sp_macro_def *macro_def = sp_malloc(pp->ast->pool, sizeof(struct sp_macro_def));
+  struct sp_macro_def *macro_def = sp_malloc(pp->pool, sizeof(struct sp_macro_def));
   if (! macro_def)
     return set_error(pp, "out of memory");
   
@@ -623,20 +635,9 @@ static int process_pp_directive(struct sp_preprocessor *pp)
     return set_error(pp, "invalid preprocessor directive: '#%s'", directive_name);
   
   switch (directive) {
-  case PP_DIR_include:
-    if (process_include(pp) < 0)
-      return -1;
-    return 0;
-    
-  case PP_DIR_define:
-    if (process_define(pp) < 0)
-      return -1;
-    return 0;
-    
-  case PP_DIR_undef:
-    if (process_undef(pp) < 0)
-      return -1;
-    return 0;
+  case PP_DIR_include: return process_include(pp);
+  case PP_DIR_define:  return process_define(pp);
+  case PP_DIR_undef:   return process_undef(pp);
 
   case PP_DIR_if:
   case PP_DIR_ifdef:
