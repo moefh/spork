@@ -1,6 +1,8 @@
 
 #define str(x) # x
 
+"hello\kworld"
+
 #define X /*
 hello */ Y
 

@@ -1,7 +1,10 @@
 /\
 / hello
 
-A B
+A B\
+CD
+
+"cheese\kmeep"
 
 x
 /* one comment
@@ -27,3 +30,8 @@ b
 
 ..\
 .
+
+//"lala\\"
+
+\\
+x
