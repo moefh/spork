@@ -174,6 +174,10 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
     snprintf(str, sizeof(str), "<newline>");
     return str;
 
+  case TOK_PP_SPACE:
+    snprintf(str, sizeof(str), "<space>");
+    return str;
+
   case TOK_PP_OTHER:
     snprintf(str, sizeof(str), "<other>");
     return str;

@@ -1,27 +1,15 @@
 /* input.c */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 #include "input.h"
 
-static struct sp_input *new_input(struct sp_mem_pool *pool, enum sp_input_type type)
+struct sp_input *sp_new_input_from_file(const char *filename, uint16_t file_id, const char *base_filename)
 {
-  struct sp_input *in = sp_malloc(pool, sizeof(struct sp_input));
-  if (! in)
-    return NULL;
-  in->next = NULL;
-  in->pool = pool;
-  in->buf_size = 0;
-  in->buf_pos = 0;
-  in->unget_size = 0;
-  in->type = type;
-  return in;
-}
-
-struct sp_input *sp_open_input_file(struct sp_mem_pool *pool, const char *filename, uint16_t file_id, const char *base_filename)
-{
-  char path[256];
+  char path[1024];
   
   /*
    * If 'filename' is not an absolute path, base it on the directory
@@ -45,58 +33,36 @@ struct sp_input *sp_open_input_file(struct sp_mem_pool *pool, const char *filena
   FILE *f = fopen(filename, "r");
   if (! f)
     return NULL;
-
-  struct sp_input *in = new_input(pool, SP_INPUT_FILE);
-  if (! in) {
-    fclose(f);
-    return NULL;
-  }
-  in->source.file.f = f;
-  in->source.file.id = file_id;
-  return in;
-}
-
-struct sp_input *sp_new_input_string(struct sp_mem_pool *pool, const char *string)
-{
-  struct sp_input *in = new_input(pool, SP_INPUT_STRING);
+  if (fseek(f, 0, SEEK_END) < 0)
+    goto err;
+  long size = ftell(f);
+  if (size < 0 || size > INT_MAX)
+    goto err;
+  if (fseek(f, 0, SEEK_SET) < 0)
+    goto err;
+  
+  struct sp_input *in = malloc(sizeof(struct sp_input) + size);
   if (! in)
-    return NULL;
-  in->source.str.data = (uint8_t *) string;
-  in->source.str.len = strlen(string);
-  in->source.str.pos = 0;
+    goto err;
+  
+  if (fread(in->data, 1, size, f) != (size_t) size) {
+    free(in);
+    goto err;
+  }
+  
+  in->next = NULL;
+  in->size = size;
+  in->pos = 0;
+  in->file_id = file_id;
+  fclose(f);
   return in;
+
+ err:
+  fclose(f);
+  return NULL;
 }
 
-void sp_close_input(struct sp_input *in)
+void sp_free_input(struct sp_input *in)
 {
-  switch (in->type) {
-  case SP_INPUT_FILE: fclose(in->source.file.f); return;
-  case SP_INPUT_STRING: return;
-  }
-  sp_free(in->pool, in);
-}
-
-int sp_input_fill_buffer_and_next_byte(struct sp_input *in)
-{
-  switch (in->type) {
-  case SP_INPUT_STRING:
-    return -1;
-
-  case SP_INPUT_FILE:
-    {
-      size_t ret = fread(in->buf, 1, sizeof(in->buf), in->source.file.f);
-      if (ret == 0)
-        return -1;
-      in->buf_size = (int) ret;
-      in->buf_pos = 0;
-      return in->buf[in->buf_pos++];
-    }
-  }
-  return -1;
-}
-
-void sp_input_unget_byte(struct sp_input *in, uint8_t b)
-{
-  if (in->unget_size < (int) sizeof(in->unget_buf))
-    in->unget_buf[in->unget_size++] = b;
+  free(in);
 }

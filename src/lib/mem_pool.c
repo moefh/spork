@@ -98,8 +98,11 @@ void *sp_malloc(struct sp_mem_pool *p, size_t size)
 
 void *sp_realloc(struct sp_mem_pool *p, void *old_data, size_t size)
 {
-  if (! p)
+  if (! p) {
+    if (old_data == NULL && size == 0)
+      return NULL;
     return realloc(old_data, size);
+  }
 
   if (size == 0)
     return NULL;

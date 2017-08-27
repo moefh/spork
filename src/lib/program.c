@@ -5,6 +5,7 @@
 
 #include "program.h"
 #include "input.h"
+#include "old_input.h"
 #include "buffer.h"
 #include "ast.h"
 #include "preprocessor.h"
@@ -39,9 +40,19 @@ int sp_set_error(struct sp_program *prog, const char *fmt, ...)
   return -1;
 }
 
+void test_new_input(struct sp_input *in);
+
 int sp_compile_program(struct sp_program *prog, const char *filename)
 {
-  struct sp_input *file = NULL;
+#if 1
+  struct sp_input *file = sp_new_input_from_file(filename, 0, NULL);
+  if (! file)
+    return sp_set_error(prog, "can't open '%s'", filename);
+  test_new_input(file);
+  sp_free_input(file);
+  return 0;
+#else
+  struct sp_old_input *file = NULL;
 
   struct sp_mem_pool pool;
   sp_init_mem_pool(&pool);
@@ -97,4 +108,5 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
   sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return -1;
+#endif
 }

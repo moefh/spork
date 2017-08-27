@@ -1,6 +1,7 @@
 /* pp_macro.c */
 
 #include <string.h>
+#include <stdio.h>
 
 #include "pp_macro.h"
 #include "token.h"

@@ -4,9 +4,10 @@
 #define TOKEN_H_FILE
 
 enum sp_token_type {
-  TOK_EOF,
+  TOK_EOF = 256,
 
   // pp-tokens
+  TOK_PP_SPACE,
   TOK_PP_NEWLINE,
   TOK_PP_HEADER_NAME,
   TOK_PP_NUMBER,

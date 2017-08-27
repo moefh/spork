@@ -1,3 +1,8 @@
+/\
+/ hello
+
+A B
+
 x
 /* one comment
  * with many lines
@@ -19,3 +24,6 @@ also this \.
 
 a \   
 b
+
+..\
+.

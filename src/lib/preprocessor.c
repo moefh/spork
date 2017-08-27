@@ -8,7 +8,7 @@
 
 #include "preprocessor.h"
 #include "hashtable.h"
-#include "input.h"
+#include "old_input.h"
 #include "ast.h"
 #include "token_list.h"
 
@@ -70,7 +70,7 @@ void sp_destroy_preprocessor(struct sp_preprocessor *pp)
   sp_destroy_mem_pool(&pp->macro_exp_pool);
 }
 
-void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast)
+void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_old_input *in, struct sp_ast *ast)
 {
   pp->in = in;
   pp->ast = ast;
@@ -133,14 +133,14 @@ void sp_dump_macros(struct sp_preprocessor *pp)
  * ==========================================================
  */
 
-#define read_byte(pp)      sp_input_next_byte((pp)->in)
-#define unread_byte(pp, b) sp_input_unget_byte((pp)->in, b)
+#define read_byte(pp)      sp_old_input_next_byte((pp)->in)
+#define unread_byte(pp, b) sp_old_input_unget_byte((pp)->in, b)
 
 #define GET_BYTE(c, pp) do { c = get_byte(pp); if (c < 0) goto eof; } while (0)
 
 static int get_byte(struct sp_preprocessor *pp)
 {
-  int c = sp_input_next_byte(pp->in);
+  int c = sp_old_input_next_byte(pp->in);
   if (c < 0)
     return -1;
   if (c == '\n') {
@@ -222,6 +222,7 @@ static int next_byte(struct sp_preprocessor *pp, int *ret)
   *ret = -1;
   return 0;
 }
+
 
 /*
  * ==========================================================
@@ -457,7 +458,7 @@ static int process_include(struct sp_preprocessor *pp)
     return set_error(pp, "out of memory");
 
   // TODO: search file in pre-defined directories
-  struct sp_input *in = sp_open_input_file(pp->pool, filename, (uint16_t) file_id, base_filename);
+  struct sp_old_input *in = sp_open_input_file(pp->pool, filename, (uint16_t) file_id, base_filename);
   if (! in)
     return set_error(pp, "can't open '%s'", filename);
   in->next = pp->in;
@@ -669,7 +670,7 @@ static int next_expanded_token(struct sp_preprocessor *pp)
     if (IS_EOF()) {
       if (! pp->in->next)
         return 0;
-      struct sp_input *next = pp->in->next;
+      struct sp_old_input *next = pp->in->next;
       sp_close_input(pp->in);
       pp->in = next;
       pp->at_newline = true;
