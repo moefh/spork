@@ -1,6 +1,7 @@
 
-OBJS = util.o mem_pool.o buffer.o hashtable.o string_tab.o input.o ast.o \
-       token.o token_list.o preprocessor.o program.o
+OBJS = util.o mem_pool.o buffer.o hashtable.o id_hashtable.o \
+       string_tab.o input.o ast.o token.o token_list.o pp_macro.o \
+       preprocessor.o program.o
 
 libspork.a: $(OBJS)
 	$(AR) $@ $(OBJS)

@@ -28,8 +28,8 @@ struct sp_token_list {
 void sp_init_token_list(struct sp_token_list *tl, struct sp_mem_pool *pool);
 int sp_token_list_size(struct sp_token_list *tl);
 int sp_append_token(struct sp_token_list *tl, struct sp_token *tok);
-void sp_rewind_token_list(struct sp_token_list *tl);
-struct sp_token *sp_read_token_from_list(struct sp_token_list *tl);
+struct sp_token *sp_rewind_token_list(struct sp_token_list *tl);
+bool sp_read_token_from_list(struct sp_token_list *tl, struct sp_token **ret);
 struct sp_token *sp_peek_token_from_list(struct sp_token_list *tl);
 
 #endif /* TOKEN_LIST_H_FILE */

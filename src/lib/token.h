@@ -102,6 +102,7 @@ struct sp_token {
   } data;
 };
 
+#define sp_get_token_string_id(tok) ((tok)->data.str_id)
 const char *sp_get_token_keyword(struct sp_token *tok);
 const char *sp_get_token_op(struct sp_token *tok);
 const char *sp_get_token_string(struct sp_ast *ast, struct sp_token *tok);

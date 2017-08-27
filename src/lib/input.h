@@ -3,6 +3,8 @@
 #ifndef INPUT_H_FILE
 #define INPUT_H_FILE
 
+#include <stdio.h>
+
 #include "internal.h"
 #include "mem_pool.h"
 

@@ -36,11 +36,12 @@ int sp_append_token(struct sp_token_list *tl, struct sp_token *tok)
   return 0;
 }
 
-void sp_rewind_token_list(struct sp_token_list *tl)
+struct sp_token *sp_rewind_token_list(struct sp_token_list *tl)
 {
   //printf("rewind list to node %p\n", (void *) tl->node_list);
   tl->r_node = tl->node_list;
   tl->r_index = 0;
+  return sp_peek_token_from_list(tl);
 }
 
 int sp_token_list_size(struct sp_token_list *tl)
@@ -51,17 +52,17 @@ int sp_token_list_size(struct sp_token_list *tl)
   return size;
 }
 
-struct sp_token *sp_read_token_from_list(struct sp_token_list *tl)
+bool sp_read_token_from_list(struct sp_token_list *tl, struct sp_token **ret)
 {
   if (! tl->r_node)
-    return NULL;
+    return false;
 
-  struct sp_token *tok = &tl->r_node->tokens[tl->r_index++];
+  *ret = &tl->r_node->tokens[tl->r_index++];
   if (tl->r_index >= tl->r_node->size) {
     tl->r_node = tl->r_node->next;
     tl->r_index = 0;
   }
-  return tok;
+  return true;
 }
 
 struct sp_token *sp_peek_token_from_list(struct sp_token_list *tl)
