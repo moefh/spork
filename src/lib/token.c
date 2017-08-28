@@ -5,7 +5,7 @@
 #include <inttypes.h>
 
 #include "internal.h"
-#include "ast.h"
+#include "preprocessor.h"
 #include "token.h"
 
 /* punctuation */
@@ -14,6 +14,29 @@ static struct punct {
   int id;
   char name[4];
 } puncts[] = {
+  { PUNCT_ELLIPSIS,    "..." },
+  { PUNCT_LSHIFTEQ,    "<<=" },
+  { PUNCT_RSHIFTEQ,    ">>=" },
+  { PUNCT_MULEQ,       "*="  },
+  { PUNCT_DIVEQ,       "/="  },
+  { PUNCT_MODEQ,       "%="  },
+  { PUNCT_PLUSEQ,      "+="  },
+  { PUNCT_MINUSEQ,     "-="  },
+  { PUNCT_ANDEQ,       "&="  },
+  { PUNCT_XOREQ,       "^="  },
+  { PUNCT_OREQ,        "|="  },
+  { PUNCT_HASHES,      "##"  },
+  { PUNCT_ARROW,       "->"  },
+  { PUNCT_PLUSPLUS,    "++"  },
+  { PUNCT_MINUSMINUS,  "--"  },
+  { PUNCT_LSHIFT,      "<<"  },
+  { PUNCT_RSHIFT,      ">>"  },
+  { PUNCT_LEQ,         "<="  },
+  { PUNCT_GEQ,         ">="  },
+  { PUNCT_EQ,          "=="  },
+  { PUNCT_NEQ,         "!="  },
+  { PUNCT_AND,         "&&"  },
+  { PUNCT_OR,          "||"  },
   { '[',               "["   },
   { ']',               "]"   },
   { '(',               "("   },
@@ -21,9 +44,6 @@ static struct punct {
   { '{',               "{"   },
   { '}',               "}"   },
   { '.',               "."   },
-  { PUNCT_ARROW,       "->"  },
-  { PUNCT_PLUSPLUS,    "++"  },
-  { PUNCT_MINUSMINUS,  "--"  },
   { '&',               "&"   },
   { '*',               "*"   },
   { '+',               "+"   },
@@ -32,37 +52,17 @@ static struct punct {
   { '!',               "!"   },
   { '/',               "/"   },
   { '%',               "%"   },
-  { PUNCT_LSHIFT,      "<<"  },
-  { PUNCT_RSHIFT,      ">>"  },
   { '<',               "<"   },
   { '>',               ">"   },
-  { PUNCT_LEQ,         "<="  },
-  { PUNCT_GEQ,         ">="  },
-  { PUNCT_EQ,          "=="  },
-  { PUNCT_NEQ,         "!="  },
   { '^',               "^"   },
   { '|',               "|"   },
-  { PUNCT_AND,         "&&"  },
-  { PUNCT_OR,          "||"  },
   { '?',               "?"   },
   { ':',               ":"   },
   { ';',               ";"   },
-  { PUNCT_ELLIPSIS,    "..." },
   { '=',               "="   },
-  { PUNCT_MULEQ,       "*="  },
-  { PUNCT_DIVEQ,       "/="  },
-  { PUNCT_MODEQ,       "%="  },
-  { PUNCT_PLUSEQ,      "+="  },
-  { PUNCT_MINUSEQ,     "-="  },
-  { PUNCT_LSHIFTEQ,    "<<=" },
-  { PUNCT_RSHIFTEQ,    ">>=" },
-  { PUNCT_ANDEQ,       "&="  },
-  { PUNCT_XOREQ,       "^="  },
-  { PUNCT_OREQ,        "|="  },
   { ',',               ","   },
   { '~',               "~"   },
   { '#',               "#"   },
-  { PUNCT_HASHES,      "##"  },
 };
 
 const char *sp_get_punct_name(int punct_id)
@@ -136,31 +136,22 @@ bool sp_find_keyword(const void *string, int size, enum sp_keyword_type *ret)
 
 /* token */
 
-const char *sp_get_token_keyword(struct sp_token *tok)
+const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_token *tok)
 {
-  for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
-    if (keywords[i].type == tok->data.keyword)
-      return keywords[i].name;
-  }
-  return NULL;
+  return sp_get_string(&pp->token_strings, tok->data.str_id);
 }
 
-const char *sp_get_token_string(struct sp_ast *ast, struct sp_token *tok)
-{
-  return sp_get_string(&ast->strings, tok->data.str_id);
-}
-
-const char *sp_get_token_op(struct sp_token *tok)
+const char *sp_get_pp_token_punct(struct sp_pp_token *tok)
 {
   return sp_get_punct_name(tok->data.punct_id);
 }
 
+#if 0
 static char to_hex_char(int i)
 {
   if (i < 10) return '0' + i;
   return 'a' + i - 10;
 }
-
 const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
 {
   static char str[256];
@@ -260,4 +251,45 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
   snprintf(str, sizeof(str), "<unknown token type %d>", tok->type);
   return str;
 }
+#endif
 
+const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
+{
+  static char str[256];
+  
+  switch (tok->type) {
+  case TOK_PP_EOF:
+    snprintf(str, sizeof(str), "<end-of-file>");
+    return str;
+
+  case TOK_PP_NEWLINE:
+    snprintf(str, sizeof(str), "<newline>");
+    return str;
+
+  case TOK_PP_SPACE:
+    snprintf(str, sizeof(str), " ");
+    return str;
+
+  case TOK_PP_OTHER:
+    snprintf(str, sizeof(str), "%c", tok->data.other);
+    return str;
+
+  case TOK_PP_CHAR_CONST:  // TODO: how do we print this?
+    snprintf(str, sizeof(str), "<char const>");
+    return str;
+    
+  case TOK_PP_IDENTIFIER:
+  case TOK_PP_HEADER_NAME:
+  case TOK_PP_STRING:
+  case TOK_PP_NUMBER:
+    snprintf(str, sizeof(str), "%s", sp_get_pp_token_string(pp, tok));
+    return str;
+    
+  case TOK_PP_PUNCT:
+    snprintf(str, sizeof(str), "%s", sp_get_punct_name(tok->data.punct_id));
+    return str;
+  }
+  
+  snprintf(str, sizeof(str), "<unknown token type %d>", tok->type);
+  return str;
+}

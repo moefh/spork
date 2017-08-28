@@ -9,9 +9,9 @@
 
 struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id name_id,
                                       bool is_function, bool last_param_is_variadic,
-                                      struct sp_token_list *params, struct sp_token_list *body)
+                                      struct sp_pp_token_list *params, struct sp_pp_token_list *body)
 {
-  int n_params = sp_token_list_size(params);
+  int n_params = sp_pp_token_list_size(params);
   struct sp_macro_def *macro = sp_malloc(pp->pool, sizeof(struct sp_macro_def) + n_params*sizeof(sp_string_id));
   if (! macro)
     return NULL;
@@ -25,26 +25,26 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
   
   // validate params
   int param_n = 0;
-  struct sp_token *param = sp_rewind_token_list(&macro->params);
+  struct sp_pp_token *param = sp_rewind_token_list(&macro->params);
   while (sp_read_token_from_list(&macro->params, &param)) {
-    if (tok_is_punct(param, PUNCT_ELLIPSIS)) {
+    if (pp_tok_is_punct(param, PUNCT_ELLIPSIS)) {
       if (sp_peek_token_from_list(&macro->params) != NULL) {
         sp_set_pp_error(pp, "parameter '...' must be the last one");
         return NULL;
       }
       macro->is_variadic = true;
-      param->type = TOK_IDENTIFIER;
-      param->data.str_id = sp_add_string(&pp->ast->strings, "__VA_ARGS__");
+      param->type = TOK_PP_IDENTIFIER;
+      param->data.str_id = sp_add_string(&pp->token_strings, "__VA_ARGS__");
       if (param->data.str_id < 0) {
         sp_set_pp_error(pp, "out of memory");
         return NULL;
       }
     }
 
-    sp_string_id param_name_id = sp_get_token_string_id(param);
+    sp_string_id param_name_id = sp_get_pp_token_string_id(param);
     for (int i = 0; i < param_n; i++)
       if (macro->param_name_ids[i] == param_name_id) {
-        sp_set_pp_error(pp, "duplicate parameter name: '%s'", sp_dump_token(pp->ast, param));
+        sp_set_pp_error(pp, "duplicate parameter name: '%s'", sp_dump_pp_token(pp, param));
         return NULL;
       }
     macro->param_name_ids[param_n++] = param_name_id;
@@ -52,25 +52,25 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
 
   // validate body
   int pos = 0;
-  struct sp_token *tok = sp_rewind_token_list(&macro->body);
+  struct sp_pp_token *tok = sp_rewind_token_list(&macro->body);
   while (sp_read_token_from_list(&macro->body, &tok)) {
-    if ((! macro->is_variadic) && tok_is_identifier(tok)) {
-      const char *ident = sp_get_token_string(pp->ast, tok);
+    if ((! macro->is_variadic) && pp_tok_is_identifier(tok)) {
+      const char *ident = sp_get_pp_token_string(pp, tok);
       if (strcmp(ident, "__VA_ARGS__") == 0) {
         sp_set_pp_error(pp, "__VA_ARGS__ is only allowed in variadic macros");
         return NULL;
       }
     }
     
-    struct sp_token *next = sp_peek_token_from_list(body);
-    if (tok_is_punct(tok, PUNCT_HASHES) && (pos == 0 || next == NULL)) {
+    struct sp_pp_token *next = sp_peek_token_from_list(body);
+    if (pp_tok_is_punct(tok, PUNCT_HASHES) && (pos == 0 || next == NULL)) {
       sp_set_pp_error(pp, "## is not allowed at the start or end of macro body");
       return NULL;
     }
   
-    if (tok_is_punct(tok, '#')) {
+    if (pp_tok_is_punct(tok, '#')) {
       bool next_is_some_argument = false;
-      if (next && tok_is_identifier(next)) {
+      if (next && pp_tok_is_identifier(next)) {
         for (int i = 0; i < macro->n_params; i++) {
           if (next->data.str_id == macro->param_name_ids[i]) {
             next_is_some_argument = true;
@@ -86,38 +86,46 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
     pos++;
   }
 
-  sp_dump_macro(macro, pp->ast);
+  //sp_dump_macro(macro, pp);
   return macro;
 }
 
-void sp_dump_macro(struct sp_macro_def *macro, struct sp_ast *ast)
+void sp_dump_macro(struct sp_macro_def *macro, struct sp_preprocessor *pp)
 {
-  printf("#define %s", sp_get_macro_name(macro, ast));
+  printf("#define %s", sp_get_macro_name(macro, pp));
   if (macro->is_function) {
     printf("(");
-    struct sp_token *t = sp_rewind_token_list(&macro->params);
+    struct sp_pp_token *t = sp_rewind_token_list(&macro->params);
     while (sp_read_token_from_list(&macro->params, &t)) {
-      printf("%s", sp_dump_token(ast, t));
-      if (sp_peek_token_from_list(&macro->params))
-        printf(", ");
+      if (pp_tok_is_identifier(t) && strcmp(sp_get_pp_token_string(pp, t), "__VA_ARGS__") == 0)
+        printf("...");
+      else {
+        printf("%s", sp_dump_pp_token(pp, t));
+        if (sp_peek_token_from_list(&macro->params))
+          printf(", ");
+        else if (macro->is_variadic)
+          printf("...");
+      }
     }
     printf(") ");
+  } else {
+    printf(" ");
   }
-  struct sp_token *t = sp_rewind_token_list(&macro->body);
+  struct sp_pp_token *t = sp_rewind_token_list(&macro->body);
   while (sp_read_token_from_list(&macro->body, &t))
-    printf(" %s", sp_dump_token(ast, t));
+    printf("%s", sp_dump_pp_token(pp, t));
   printf("\n");
 }
 
-const char *sp_get_macro_name(struct sp_macro_def *macro, struct sp_ast *ast)
+const char *sp_get_macro_name(struct sp_macro_def *macro, struct sp_preprocessor *pp)
 {
-  return sp_get_ast_string(ast, macro->name_id);
+  return sp_get_string(&pp->token_strings, macro->name_id);
 }
 
 struct sp_macro_args *sp_new_macro_args(struct sp_macro_def *macro, struct sp_mem_pool *pool)
 {
-  int n_args = sp_token_list_size(&macro->params);
-  struct sp_macro_args *args = sp_malloc(pool, sizeof(struct sp_macro_args) + n_args*sizeof(struct sp_token_list));
+  int n_args = sp_pp_token_list_size(&macro->params);
+  struct sp_macro_args *args = sp_malloc(pool, sizeof(struct sp_macro_args) + n_args*sizeof(struct sp_pp_token_list));
   if (! args)
     return NULL;
   args->pool = pool;
@@ -129,26 +137,26 @@ struct sp_macro_args *sp_new_macro_args(struct sp_macro_def *macro, struct sp_me
 }
 
 int sp_read_macro_args(struct sp_preprocessor *pp, struct sp_macro_args *args,
-                       struct sp_macro_def *macro, sp_token_reader *reader, void *reader_data)
+                       struct sp_macro_def *macro, sp_pp_token_reader *reader, void *reader_data)
 {
-  struct sp_token tok;
+  struct sp_pp_token tok;
   if (reader(pp, &tok, reader_data) < 0)
     return -1;
-  if (! tok_is_punct(&tok, '('))
-    return sp_set_pp_error(pp, "expected '(', found '%s'", sp_dump_token(pp->ast, &tok));
+  if (! pp_tok_is_punct(&tok, '('))
+    return sp_set_pp_error(pp, "expected '(', found '%s'", sp_dump_pp_token(pp, &tok));
 
   int paren_level = 0;
   while (true) {
     if (reader(pp, &tok, reader_data) < 0)
       return -1;
-    printf("<<ARG: '%s'>>", sp_dump_token(pp->ast, &tok));
+    printf("<<ARG: '%s'>>", sp_dump_pp_token(pp, &tok));
     if (paren_level == 0) {
-      if (tok_is_punct(&tok, ')')) {
+      if (pp_tok_is_punct(&tok, ')')) {
         if (args->len < macro->n_params)
           args->len++;
         break;
       }
-      if (tok_is_punct(&tok, ',')) {
+      if (pp_tok_is_punct(&tok, ',')) {
         args->len++;
         if (args->len < args->cap)
           continue;
@@ -156,9 +164,9 @@ int sp_read_macro_args(struct sp_preprocessor *pp, struct sp_macro_args *args,
           return sp_set_pp_error(pp, "too many arguments in macro invocation");
       }
     }
-    if (tok_is_punct(&tok, '('))
+    if (pp_tok_is_punct(&tok, '('))
       paren_level++;
-    else if (tok_is_punct(&tok, ')'))
+    else if (pp_tok_is_punct(&tok, ')'))
       paren_level--;
 
     int add_index = args->len;

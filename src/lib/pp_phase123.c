@@ -14,6 +14,12 @@
 #include "ast.h"
 #include "token.h"
 
+#define ERR_ERROR                -1
+#define ERR_OUT_OF_MEMORY        -2
+#define ERR_UNTERMINATED_HEADER  -3
+#define ERR_UNTERMINATED_STRING  -4
+#define ERR_EOF_IN_COMMENT       -5
+
 #define IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
 #define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
@@ -85,13 +91,20 @@ static bool skip_comments(struct sp_input *in, int *err)
       ADVANCE();
       while (true) {
         if (CUR < 0) {
-          *err = 1;
+          *err = ERR_EOF_IN_COMMENT;
           return false;
         }
-        if (CUR == '*' && NEXT == '/') {
+        if (CUR == '*') {
           ADVANCE();
-          ADVANCE();
-          break;
+          if (CUR == '\\')
+            skip_bs_newline(in);
+          if (CUR == '/') {
+            ADVANCE();
+            break;
+          }
+          if (CUR != '*')
+            ADVANCE();
+          continue;
         }
         ADVANCE();
       }
@@ -129,22 +142,18 @@ static int read_header(struct sp_input *in, struct sp_buffer *buf)
     if (CUR == '\\')
       skip_bs_newline(in);
     if (CUR < 0)
-      return -1; // set_error(pp, "unterminated header");
+      return ERR_UNTERMINATED_HEADER;
     if (CUR == '\n')
-      return -1; // set_error(pp, "unterminated header name");
+      return ERR_UNTERMINATED_HEADER;
     if (CUR == end_char) {
       ADVANCE();
       break;
     }
     if (sp_buf_add_byte(buf, CUR) < 0)
-      return -1; // set_error(pp, "out of memory");
+      return ERR_OUT_OF_MEMORY;
   }
   if (sp_buf_add_byte(buf, '\0') < 0)
-    return -1;   // set_error(pp, "out of memory");
-  //sp_string_id str_id = sp_add_string(&pp->ast->strings, buf->p);
-  //if (str_id < 0)
-  //  return set_error(pp, "out of memory");
-  //pp->tok.data.str_id = str_id;
+    return ERR_OUT_OF_MEMORY;
   return TOK_PP_HEADER_NAME;
 }
 
@@ -155,65 +164,78 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
     ADVANCE();
     if (CUR == '\\') {
       if (! skip_bs_newline(in)) {
+        // actual backslash
         if (sp_buf_add_byte(buf, CUR) < 0)
-          return -1; // set_error(pp, "out of memory");
+          return ERR_OUT_OF_MEMORY;
         ADVANCE();
         if (CUR < 0)
-          return -1; // set_error(pp, "unterminated string");
+          return ERR_UNTERMINATED_STRING;
+        if (CUR == '\\')
+          skip_bs_newline(in);
         if (sp_buf_add_byte(buf, CUR) < 0)
-          return -1; // set_error(pp, "out of memory");
+          return ERR_OUT_OF_MEMORY;
         ADVANCE();
+        if (CUR == '\\')
+          skip_bs_newline(in);
       }
     }
     if (CUR == '\n')
-      return -1; // set_error(pp, "unterminated string");
+      return ERR_UNTERMINATED_STRING;
     if (CUR < 0) {
       printf("*** UNTERMINATED STRING");
-      return -1; // set_error(pp, "unterminated string");
+      return ERR_UNTERMINATED_STRING;
     }
     if (CUR == '"') {
       ADVANCE();
       break;
     }
     if (sp_buf_add_byte(buf, CUR) < 0)
-      return -1; // set_error(pp, "out of memory");
+      return ERR_OUT_OF_MEMORY;
   }
   if (sp_buf_add_byte(buf, '\0') < 0)
-    return -1;   // set_error(pp, "out of memory");
-  //sp_string_id str_id = sp_add_string(&pp->ast->strings, buf->p);
-  //if (str_id < 0)
-  //  return set_error(pp, "out of memory");
-  //pp->tok.data.str_id = str_id;
-  return TOK_STRING;
+    return ERR_OUT_OF_MEMORY;
+  return TOK_PP_STRING;
 }
 
 static int read_number(struct sp_input *in, struct sp_buffer *buf)
 {
   buf->size = 0;
   if (sp_buf_add_byte(buf, CUR) < 0)
-    return -1; // set_error(pp, "out of memory");
+    return ERR_OUT_OF_MEMORY;
   ADVANCE();
   while (true) {
-    if ((CUR == 'e' || CUR == 'E' || CUR == 'p' || CUR == 'P')
-        && (NEXT == '-' || NEXT == '+')) {
-      if (sp_buf_add_byte(buf, CUR) < 0)
-        return -1; // set_error(pp, "out of memory");
+    if (CUR == '\\' && ! skip_bs_newline(in))
+      break;
+
+    // [eEpP][+-]
+    if (CUR == 'e' || CUR == 'E' || CUR == 'p' || CUR == 'P') {
+      char exp = CUR;
+      int rewind_pos = CUR_POS;
       ADVANCE();
-      if (sp_buf_add_byte(buf, CUR) < 0)
-        return -1; // set_error(pp, "out of memory");
-      ADVANCE();
-      continue;
+      if (CUR == '\\' && ! skip_bs_newline(in)) {
+        SET_POS(rewind_pos);
+        break;
+      }
+      if (CUR == '-' || CUR == '+') {
+        if (sp_buf_add_byte(buf, exp) < 0 || sp_buf_add_byte(buf, CUR) < 0)
+          return ERR_OUT_OF_MEMORY;
+        ADVANCE();
+        continue;
+      }
     }
+
+    // [0-9A-Za-z_.]
     if (IS_DIGIT(CUR) || IS_ALPHA(CUR) || CUR == '.') {
       if (sp_buf_add_byte(buf, CUR) < 0)
-        return -1; // set_error(pp, "out of memory");
+        return ERR_OUT_OF_MEMORY;
       ADVANCE();
       continue;
     }
+    
     break;
   }
   if (sp_buf_add_byte(buf, '\0') < 0)
-    return -1;   // set_error(pp, "out of memory");
+    return ERR_OUT_OF_MEMORY;
   return TOK_PP_NUMBER;
 }
 
@@ -221,7 +243,7 @@ static int read_ident(struct sp_input *in, struct sp_buffer *buf)
 {
   buf->size = 0;
   if (sp_buf_add_byte(buf, CUR) < 0)
-    return -1; // set_error(pp, "out of memory");
+    return ERR_OUT_OF_MEMORY;
   ADVANCE();
   while (true) {
     if (CUR == '\\' && ! skip_bs_newline(in))
@@ -229,37 +251,42 @@ static int read_ident(struct sp_input *in, struct sp_buffer *buf)
     if (! IS_ALNUM(CUR))
       break;
     if (sp_buf_add_byte(buf, CUR) < 0)
-      return -1; // set_error(pp, "out of memory");
+      return ERR_OUT_OF_MEMORY;
     ADVANCE();
   }
   if (sp_buf_add_byte(buf, '\0') < 0)
-    return -1;   // set_error(pp, "out of memory");
-  return TOK_IDENTIFIER;
+    return ERR_OUT_OF_MEMORY;
+  return TOK_PP_IDENTIFIER;
 }
 
-static int read_token(struct sp_input *in, struct sp_buffer *buf, bool parse_header)
+static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool parse_header)
 {
   int err = 0;
   
-  if (CUR < 0)
-    return TOK_EOF;
+  if (CUR < 0) {
+    *pos = in->size;
+    return TOK_PP_EOF;
+  }
+
+  skip_bs_newline(in);
 
   /* comment */
   if (skip_comments(in, &err))
     goto skip_spaces;
   if (err)
-    return -1;  // TODO: error message
+    return err;
 
   /* spaces/newlines */
-  skip_bs_newline(in);
   if (skip_spaces(in)) {
   skip_spaces:;
     bool got_newline = false;
 
+    *pos = CUR_POS;
     while (skip_spaces(in) || skip_bs_newline(in))
       ;
     do {
       if (CUR == '\n') {
+        *pos = CUR_POS;
         ADVANCE();
         got_newline = true;
       }
@@ -267,14 +294,12 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, bool parse_hea
     if (got_newline) {
       if (skip_comments(in, &err))
         goto skip_newlines;
-      if (err)
-        return -1;
     } else {
       if (skip_comments(in, &err))
         goto skip_spaces;
-      if (err)
-        return -1;
     }
+    if (err)
+      return err;
     return (got_newline) ? '\n' : ' ';
   }
 
@@ -282,69 +307,151 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, bool parse_hea
   if (CUR == '\n') {
   skip_newlines:
     do {
-      if (CUR == '\n')
+      if (CUR == '\n') {
+        *pos = CUR_POS;
         ADVANCE();
+      }
     } while (skip_spaces(in) || skip_bs_newline(in) || CUR == '\n');
     if (skip_comments(in, &err))
       goto skip_newlines;
     if (err)
-      return -1;
+      return err;
     return '\n';
   }
 
   /* <header> */
-  if (parse_header && (CUR == '<' || CUR == '"'))
+  if (parse_header && (CUR == '<' || CUR == '"')) {
+    *pos = CUR_POS;
     return read_header(in, buf);
+  }
 
   /* "string" */
-  if (CUR == '"')
+  if (CUR == '"') {
+    *pos = CUR_POS;
     return read_string(in, buf);
+  }
 
   /* number */
-  if (IS_DIGIT(CUR))
+  if (IS_DIGIT(CUR)) {
+    *pos = CUR_POS;
     return read_number(in, buf);
-  if (CUR == '.' && IS_DIGIT(NEXT))
-    return read_number(in, buf);
+  }
+  if (CUR == '.') {
+    int rewind_pos = CUR_POS;
+    ADVANCE();
+    if (IS_DIGIT(CUR) || (CUR == '\\' && skip_bs_newline(in) && IS_DIGIT(CUR))) {
+      SET_POS(rewind_pos);
+      *pos = CUR_POS;
+      return read_number(in, buf);
+    }
+    SET_POS(rewind_pos);
+  }
 
   /* identifier */
-  if (IS_ALPHA(CUR))
+  if (IS_ALPHA(CUR)) {
+    *pos = CUR_POS;
     return read_ident(in, buf);
+  }
 
-  // TODO: punctuation
+  // TODO: character constant
+  
+  /* punctuation */
+  buf->size = 0;
+  // ensure we have enough space for any punctuation
+  if (sp_buf_add_string(buf, "...", 3) < 0)
+    return ERR_OUT_OF_MEMORY;
+  int start_pos = CUR_POS;
+  for (int try_size = 3; try_size > 0; try_size--) {
+    buf->size = 0;
+    for (int i = 0; i < try_size; i++) {
+      sp_buf_add_byte(buf, CUR);
+      ADVANCE();
+      if (CUR == '\\')
+        skip_bs_newline(in);
+    }
+    sp_buf_add_byte(buf, '\0');
+    if (sp_get_punct_id(buf->p) >= 0) {
+      *pos = start_pos;
+      return TOK_PP_PUNCT;
+    }
+    SET_POS(start_pos);
+  }
   
   int c = CUR;
+  *pos = CUR_POS;
   ADVANCE();
   return c;
 }
 
-void test_new_input(struct sp_input *in)
+static bool next_char_is_lparen(struct sp_input *in)
 {
-  struct sp_mem_pool pool;
-  sp_init_mem_pool(&pool);
-  struct sp_buffer tmp_buf;
-  sp_init_buffer(&tmp_buf, &pool);
-  
-  while (true) {
-    int c = read_token(in, &tmp_buf, false);
-    if (c < 0) {
-      printf("\n*** ERROR ***\n");
-      goto end;
+  int rewind_pos = CUR_POS;
+  if (CUR == '\\')
+    skip_bs_newline(in);
+  if (CUR == '(') {
+    SET_POS(rewind_pos);
+    return true;
+  }
+  SET_POS(rewind_pos);
+  return false;
+}
+
+bool sp_next_pp_char_is_lparen(struct sp_preprocessor *pp)
+{
+  return next_char_is_lparen(pp->in);
+}
+
+int sp_next_pp_token(struct sp_preprocessor *pp, bool parse_header)
+{
+  int pos;
+  int type = read_token(pp->in, &pp->tmp_buf, &pos, parse_header);
+
+  // error
+  if (type < 0) {
+    switch (type) {
+    case ERR_ERROR:               return sp_set_pp_error(pp, "internal error");
+    case ERR_OUT_OF_MEMORY:       return sp_set_pp_error(pp, "out of memory");
+    case ERR_UNTERMINATED_STRING: return sp_set_pp_error(pp, "unterminated string");
+    case ERR_UNTERMINATED_HEADER: return sp_set_pp_error(pp, "unterminated header name");
+    case ERR_EOF_IN_COMMENT:      return sp_set_pp_error(pp, "unterminated comment");
     }
-    switch (c) {
-    case TOK_EOF: printf("<eof>\n"); goto end;
-    case TOK_PP_SPACE: printf(" "); break;
-    case TOK_PP_NEWLINE:
-    case '\n':
-      printf("<nl>\n"); break;
-      
-    default:
-      if (c > 256)
-        printf("<type %d: '%s'>", c, tmp_buf.p);
-      else
-        printf("%c", c);
-    }
+    return sp_set_pp_error(pp, "internal error");
   }
 
- end:
-  sp_destroy_mem_pool(&pool);
+  // TODO: set location based on 'pos'
+  pp->tok.loc = sp_make_src_loc(sp_get_input_file_id(pp->in),0,0);
+
+  // space
+  if (type == ' ') {
+    pp->tok.type = TOK_PP_SPACE;
+    return 0;
+  }
+
+  // newline
+  if (type == '\n') {
+    pp->tok.type = TOK_PP_NEWLINE;
+    return 0;
+  }
+
+  // other
+  if (type < 256) {
+    pp->tok.type = TOK_PP_OTHER;
+    pp->tok.data.other = type;
+    return 0;
+  }
+
+  // punct
+  if (type == TOK_PP_PUNCT) {
+    pp->tok.type = TOK_PP_PUNCT;
+    pp->tok.data.punct_id = sp_get_punct_id(pp->tmp_buf.p);
+    return 0;
+  }
+
+  // other tokens
+  sp_string_id str_id = sp_add_string(&pp->token_strings, pp->tmp_buf.p);
+  if (str_id < 0)
+    return sp_set_pp_error(pp, "out of memory");
+  pp->tok.type = type;
+  pp->tok.data.str_id = str_id;
+  return 0;
 }

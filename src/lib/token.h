@@ -3,27 +3,17 @@
 #ifndef TOKEN_H_FILE
 #define TOKEN_H_FILE
 
-enum sp_token_type {
-  TOK_EOF = 256,
-
-  // pp-tokens
+enum sp_pp_token_type {
+  TOK_PP_EOF = 256,
   TOK_PP_SPACE,
   TOK_PP_NEWLINE,
   TOK_PP_HEADER_NAME,
+  TOK_PP_IDENTIFIER,
   TOK_PP_NUMBER,
   TOK_PP_CHAR_CONST,
+  TOK_PP_STRING,
+  TOK_PP_PUNCT,
   TOK_PP_OTHER,
-
-  // pp-tokens + tokens
-  TOK_IDENTIFIER,
-  TOK_STRING,
-  TOK_PUNCT,
-
-  // tokens
-  TOK_KEYWORD,
-  TOK_INT_CONST,
-  TOK_FLOAT_CONST,
-  TOK_ENUM_CONST,
 };
 
 enum {
@@ -88,36 +78,32 @@ enum sp_keyword_type {
   KW_while,
 };
 
-struct sp_token {
-  enum sp_token_type type;
+struct sp_pp_token {
+  enum sp_pp_token_type type;
   struct sp_src_loc loc;
   union {
-    double d;
-    uint64_t i;
-    char c;
     sp_string_id str_id;
-    char op_name[4];
     int punct_id;
-
-    enum sp_keyword_type keyword;
+    int other;
   } data;
 };
 
-#define sp_get_token_string_id(tok) ((tok)->data.str_id)
-const char *sp_get_token_keyword(struct sp_token *tok);
-const char *sp_get_token_op(struct sp_token *tok);
-const char *sp_get_token_string(struct sp_ast *ast, struct sp_token *tok);
-bool sp_find_keyword(const void *string, int size, enum sp_keyword_type *ret);
-const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok);
+struct sp_preprocessor;
+
+#define sp_get_pp_token_string_id(tok) ((tok)->data.str_id)
+const char *sp_get_pp_token_punct(struct sp_pp_token *tok);
+const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_token *tok);
+const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
 
 int sp_get_punct_id(char *name);
 const char *sp_get_punct_name(int punct_id);
 
-#define tok_is_eof(tok)          ((tok)->type == TOK_EOF)
-#define tok_is_number(tok)       ((tok)->type == TOK_NUMBER)
-#define tok_is_string(tok)       ((tok)->type == TOK_STRING)
-#define tok_is_punct(tok, p)     ((tok)->type == TOK_PUNCT && (tok)->data.punct_id == (p))
-#define tok_is_keyword(tok, kw)  ((tok)->type == TOK_KEYWORD && (tok)->data.keyword == (kw))
-#define tok_is_identifier(tok)   ((tok)->type == TOK_IDENTIFIER)
+#define pp_tok_is_eof(tok)          ((tok)->type == TOK_PP_EOF)
+#define pp_tok_is_newline(tok)      ((tok)->type == TOK_PP_NEWLINE)
+#define pp_tok_is_space(tok)        ((tok)->type == TOK_PP_SPACE)
+#define pp_tok_is_number(tok)       ((tok)->type == TOK_PP_NUMBER)
+#define pp_tok_is_string(tok)       ((tok)->type == TOK_PP_STRING)
+#define pp_tok_is_punct(tok, p)     ((tok)->type == TOK_PP_PUNCT && (tok)->data.punct_id == (p))
+#define pp_tok_is_identifier(tok)   ((tok)->type == TOK_PP_IDENTIFIER)
 
 #endif /* TOKEN_H_FILE */

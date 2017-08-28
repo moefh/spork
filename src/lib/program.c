@@ -5,7 +5,6 @@
 
 #include "program.h"
 #include "input.h"
-#include "old_input.h"
 #include "buffer.h"
 #include "ast.h"
 #include "preprocessor.h"
@@ -44,15 +43,7 @@ void test_new_input(struct sp_input *in);
 
 int sp_compile_program(struct sp_program *prog, const char *filename)
 {
-#if 1
-  struct sp_input *file = sp_new_input_from_file(filename, 0, NULL);
-  if (! file)
-    return sp_set_error(prog, "can't open '%s'", filename);
-  test_new_input(file);
-  sp_free_input(file);
-  return 0;
-#else
-  struct sp_old_input *file = NULL;
+  struct sp_input *file = NULL;
 
   struct sp_mem_pool pool;
   sp_init_mem_pool(&pool);
@@ -72,7 +63,7 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     goto err;
   }
   
-  file = sp_open_input_file(ast->pool, filename, (uint16_t) file_id, NULL);
+  file = sp_new_input_from_file(filename, (uint16_t) file_id, NULL);
   if (! file) {
     sp_set_error(prog, "can't open '%s'", filename);
     goto err;
@@ -80,14 +71,14 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
 
   sp_set_preprocessor_io(&pp, file, ast);
   printf("===================================\n");
-  struct sp_token tok;
+  struct sp_pp_token tok;
   do {
     if (sp_read_token(&pp, &tok) < 0)
       goto err;
-    printf("%s ", sp_dump_token(ast, &tok));
-    if (tok.type == TOK_PUNCT && tok.data.punct_id == ';')
+    printf("%s", sp_dump_pp_token(&pp, &tok));
+    if (pp_tok_is_newline(&tok))
       printf("\n");
-  } while (! tok_is_eof(&tok));
+  } while (! pp_tok_is_eof(&tok));
   printf("\n");
   printf("===================================\n");
 
@@ -97,16 +88,15 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     printf("===================================\n");
   }
 
-  sp_close_input(file);
+  sp_free_input(file);
   sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return 0;
       
  err:
   if (file)
-    sp_close_input(file);
+    sp_free_input(file);
   sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return -1;
-#endif
 }
