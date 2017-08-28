@@ -134,8 +134,6 @@ bool sp_find_keyword(const void *string, int size, enum sp_keyword_type *ret)
   return false;
 }
 
-/* token */
-
 const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_token *tok)
 {
   return sp_get_string(&pp->token_strings, tok->data.str_id);
@@ -144,6 +142,34 @@ const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_toke
 const char *sp_get_pp_token_punct(struct sp_pp_token *tok)
 {
   return sp_get_punct_name(tok->data.punct_id);
+}
+
+bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2)
+{
+  if (t1->type != t2->type)
+    return false;
+
+  switch (t1->type) {
+  case TOK_PP_EOF:
+  case TOK_PP_SPACE:
+  case TOK_PP_NEWLINE:
+    return true;
+
+  case TOK_PP_OTHER:
+    return t1->data.other == t2->data.other;
+
+  case TOK_PP_PUNCT:
+    return t1->data.punct_id == t2->data.punct_id;
+
+  case TOK_PP_HEADER_NAME:
+  case TOK_PP_STRING:
+  case TOK_PP_IDENTIFIER:
+  case TOK_PP_NUMBER:
+  case TOK_PP_CHAR_CONST:
+    return t1->data.str_id == t2->data.str_id;
+  }
+
+  return false;
 }
 
 #if 0

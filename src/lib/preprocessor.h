@@ -35,7 +35,7 @@ struct sp_preprocessor {
 
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
 void sp_destroy_preprocessor(struct sp_preprocessor *pp);
-int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...);
+int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...) SP_PRINTF_FORMAT(2,3);
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
 void sp_dump_macros(struct sp_preprocessor *pp);
 

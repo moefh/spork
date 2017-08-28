@@ -1,7 +1,7 @@
-/* lib.h */
+/* internal.h */
 
-#ifndef LIB_H_FILE
-#define LIB_H_FILE
+#ifndef INTERNAL_H_FILE
+#define INTERNAL_H_FILE
 
 #include "spork.h"
 #include "mem_pool.h"
@@ -25,4 +25,4 @@ void sp_dump_char(char c);
 
 void sp_init_program(struct sp_program *prog);
 
-#endif /* LIB_H_FILE */
+#endif /* INTERNAL_H_FILE */

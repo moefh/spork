@@ -93,7 +93,9 @@ struct sp_preprocessor;
 #define sp_get_pp_token_string_id(tok) ((tok)->data.str_id)
 const char *sp_get_pp_token_punct(struct sp_pp_token *tok);
 const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_token *tok);
+
 const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
+bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2);
 
 int sp_get_punct_id(char *name);
 const char *sp_get_punct_name(int punct_id);

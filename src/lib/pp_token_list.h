@@ -30,5 +30,6 @@ int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok);
 struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl);
 bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret);
 struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl);
+bool sp_pp_token_lists_are_equal(struct sp_pp_token_list *l1, struct sp_pp_token_list *l2);
 
 #endif /* PP_TOKEN_LIST_H_FILE */

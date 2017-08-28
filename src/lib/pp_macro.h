@@ -41,5 +41,6 @@ int sp_read_macro_args(struct sp_preprocessor *pp, struct sp_macro_args *args,
 struct sp_pp_token_list *sp_get_macro_arg(struct sp_macro_def *macro, struct sp_macro_args *args, int param_name_id);
 
 void sp_dump_macro(struct sp_macro_def *macro, struct sp_preprocessor *pp);
+bool sp_macros_are_equal(struct sp_macro_def *m1, struct sp_macro_def *m2);
 
 #endif /* PP_MACRO_H_FILE */

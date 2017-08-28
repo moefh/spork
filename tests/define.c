@@ -11,5 +11,8 @@
 #undef a1
 #undef doesnt_exist
 
+#define redefinition_test(a,b)  a+b
+#define redefinition_test(a, b) a+b
+
 a  #
 b

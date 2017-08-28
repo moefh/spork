@@ -10,7 +10,6 @@
 #include <inttypes.h>
 
 #include "preprocessor.h"
-//#include "input.h"
 #include "ast.h"
 #include "pp_token.h"
 
@@ -240,6 +239,13 @@ static int process_define(struct sp_preprocessor *pp)
                                                 last_param_is_variadic, &params, &body);
   if (! macro)
     return -1;
+
+  struct sp_macro_def *old_macro = sp_get_idht_value(&pp->macros, macro_name_id);
+  if (old_macro) {
+    if (! sp_macros_are_equal(macro, old_macro))
+      return set_error(pp, "redefinition of macro '%s'", sp_get_string(&pp->token_strings, macro_name_id));
+    return 0;
+  }
   
   if (sp_add_idht_entry(&pp->macros, macro_name_id, macro) < 0)
     return set_error(pp, "out of memory");

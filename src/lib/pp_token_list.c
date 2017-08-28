@@ -36,6 +36,23 @@ int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok)
   return 0;
 }
 
+bool sp_pp_token_lists_are_equal(struct sp_pp_token_list *l1, struct sp_pp_token_list *l2)
+{
+  struct sp_pp_token *t1 = sp_rewind_pp_token_list(l1);
+  struct sp_pp_token *t2 = sp_rewind_pp_token_list(l2);
+  while (true) {
+    bool ok1 = sp_read_pp_token_from_list(l1, &t1);
+    bool ok2 = sp_read_pp_token_from_list(l2, &t2);
+    if (ok1 != ok2)
+      return false;
+    if (! ok1)
+      break;
+    if (! sp_pp_tokens_are_equal(t1, t2))
+      return false;
+  }
+  return true;
+}
+
 struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl)
 {
   //printf("rewind list to node %p\n", (void *) tl->node_list);
