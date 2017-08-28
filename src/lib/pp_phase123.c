@@ -137,21 +137,22 @@ static int read_header(struct sp_input *in, struct sp_buffer *buf)
   char end_char = (CUR == '<') ? '>' : '"';
   
   buf->size = 0;
+  if (sp_buf_add_byte(buf, CUR) < 0)
+    return ERR_OUT_OF_MEMORY;
   while (true) {
     ADVANCE();
     if (CUR == '\\')
       skip_bs_newline(in);
-    if (CUR < 0)
+    if (CUR < 0 || CUR == '\n')
       return ERR_UNTERMINATED_HEADER;
-    if (CUR == '\n')
-      return ERR_UNTERMINATED_HEADER;
-    if (CUR == end_char) {
-      ADVANCE();
+    if (CUR == end_char)
       break;
-    }
     if (sp_buf_add_byte(buf, CUR) < 0)
       return ERR_OUT_OF_MEMORY;
   }
+  if (sp_buf_add_byte(buf, CUR) < 0)
+    return ERR_OUT_OF_MEMORY;
+  ADVANCE();
   if (sp_buf_add_byte(buf, '\0') < 0)
     return ERR_OUT_OF_MEMORY;
   return TOK_PP_HEADER_NAME;
@@ -179,12 +180,8 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
           skip_bs_newline(in);
       }
     }
-    if (CUR == '\n')
+    if (CUR == '\n' || CUR < 0)
       return ERR_UNTERMINATED_STRING;
-    if (CUR < 0) {
-      printf("*** UNTERMINATED STRING");
-      return ERR_UNTERMINATED_STRING;
-    }
     if (CUR == '"') {
       ADVANCE();
       break;

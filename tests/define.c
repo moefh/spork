@@ -9,10 +9,7 @@
 #define f( x, y ...) y
 #define g (x)
 #undef a1
-#undef doesnt_exist y
-
-
-
+#undef doesnt_exist
 
 a  #
 b

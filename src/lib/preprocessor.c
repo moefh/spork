@@ -12,13 +12,6 @@
 #include "ast.h"
 #include "token_list.h"
 
-#if 0
-#define IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
-#define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
-#define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
-#define IS_ALNUM(c) (IS_ALPHA(c) || IS_DIGIT(c))
-#endif
-
 enum pp_directive_type {
   PP_DIR_if,
   PP_DIR_ifdef,
@@ -147,23 +140,37 @@ static bool find_pp_directive(const char *string, enum pp_directive_type *ret)
 
 static int process_include(struct sp_preprocessor *pp)
 {
-  if (sp_next_pp_token(pp, true) < 0)
-    return -1;
+  do {
+    if (sp_next_pp_token(pp, true) < 0)
+      return -1;
+  } while (IS_SPACE());
   
-  if (! IS_STRING() && ! IS_PP_HEADER_NAME())   // TODO: allow macro expansion
+  if (! IS_PP_HEADER_NAME())   // TODO: allow macro expansion
     return set_error(pp, "bad include file name: '%s'", sp_dump_pp_token(pp, &pp->tok));
   
-  const char *filename = sp_get_pp_token_string(pp, &pp->tok);
-  NEXT_TOKEN();
+  const char *include_file = sp_get_pp_token_string(pp, &pp->tok);
+  do {
+    NEXT_TOKEN();
+  } while (IS_SPACE());
   if (! IS_NEWLINE())
     return set_error(pp, "unexpected input after include file name: '%s'", sp_dump_pp_token(pp, &pp->tok));
-  
+
+  // remove surrounding <> or ""
+  char filename[256];
+  size_t include_filename_len = strlen(include_file);
+  if (include_filename_len < 2)
+    return set_error(pp, "invalid filename");
+  if (include_filename_len > sizeof(filename)+1)
+    return set_error(pp, "filename too long");
+  memcpy(filename, include_file+1, include_filename_len-2);
+  filename[include_filename_len-2] = '\0';
+  //bool is_system_header = (include_file[0] == '<');
+
+  // open file (TODO: search file according to 'is_system_header')
   const char *base_filename = sp_get_ast_file_name(pp->ast, sp_get_input_file_id(pp->in));
   sp_string_id file_id = sp_add_ast_file_name(pp->ast, filename);
   if (file_id < 0)
     return set_error(pp, "out of memory");
-
-  // TODO: search file in pre-defined directories
   struct sp_input *in = sp_new_input_from_file(filename, (uint16_t) file_id, base_filename);
   if (! in)
     return set_error(pp, "can't open '%s'", filename);
@@ -186,10 +193,11 @@ static int process_undef(struct sp_preprocessor *pp)
   
   sp_delete_idht_entry(&pp->macros, sp_get_pp_token_string_id(&pp->tok));
 
-  NEXT_TOKEN();
-  while (! IS_NEWLINE())
-    NEXT_TOKEN();  // ignore extra tokens after IDENTIFIER
-  
+  do {
+    NEXT_TOKEN();
+  } while (IS_SPACE());
+  if (! IS_NEWLINE())
+    return set_error(pp, "unexpected input after #undef MACRO: '%s'", sp_dump_pp_token(pp, &pp->tok));
   return 0;
 }
 
