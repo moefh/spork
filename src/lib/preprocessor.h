@@ -23,10 +23,9 @@ struct sp_preprocessor {
   struct sp_mem_pool macro_exp_pool;
   struct sp_string_table token_strings;
   
-  struct sp_id_hashtable macros;
   struct sp_buffer tmp_buf;
-
-  struct sp_pp_token_list macro_expansion;
+  struct sp_id_hashtable macros;
+  struct sp_pp_token_list *macro_exp;
 
   bool at_newline;
   struct sp_pp_token tok;
@@ -39,6 +38,7 @@ int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...) SP_PRINTF_FORMAT
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
 void sp_dump_macros(struct sp_preprocessor *pp);
 
+int sp_peek_nonspace_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header);
 int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header);
 bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp);
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp);

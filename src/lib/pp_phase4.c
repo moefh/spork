@@ -291,55 +291,31 @@ static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, 
 {
   UNUSED(args);
 
+  struct sp_pp_token_list *macro_exp = sp_new_pp_token_list(&pp->macro_exp_pool);
+  if (! macro_exp)
+    return set_error(pp, "out of memory");
+  
   macro->enabled = false;
 
   struct sp_pp_token *t = sp_rewind_pp_token_list(&macro->body);
   while (sp_read_pp_token_from_list(&macro->body, &t)) {
-    if (pp_tok_is_identifier(t)) {
-      sp_string_id ident_id = sp_get_pp_token_string_id(t);
-      struct sp_macro_def *ident_macro = sp_get_idht_value(&pp->macros, ident_id);
-      if (ident_macro && ident_macro->enabled) {
-        struct sp_pp_token_list args;
-        sp_init_pp_token_list(&args, &pp->macro_exp_pool);
-        
-        bool expand = true;
-        if (ident_macro->is_function) {
-          struct sp_pp_token *next = sp_peek_pp_token_from_list(&macro->body);
-          if (next && pp_tok_is_punct(next, '(')) {
-            // TODO: read arguments from macro->body
-            if (sp_pp_token_list_size(&args) != sp_pp_token_list_size(&ident_macro->params)) {
-              set_error(pp, "invalid number of arguments in macro invocation");
-              goto err;
-            }
-          } else
-            expand = false;
-        }
-        if (expand) {
-          if (expand_macro(pp, ident_macro, &args) < 0)
-            goto err;
-          continue;
-        }
-      }
-    }
-    if (sp_append_pp_token(&pp->macro_expansion, t) < 0)
-      set_error(pp, "out of memory");
+    if (sp_append_pp_token(macro_exp, t) < 0)
+      return set_error(pp, "out of memory");
   }
   
   macro->enabled = true;
   return 0;
-
- err:
-  macro->enabled = true;
-  return -1;
 }
 
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
 {
   while (true) {
-    if (sp_pp_token_list_size(&pp->macro_expansion) > 0) {
+    if (pp->macro_exp) {
       struct sp_pp_token *tok;
-      if (sp_read_pp_token_from_list(&pp->macro_expansion, &tok)) {
+      if (sp_read_pp_token_from_list(pp->macro_exp, &tok)) {
         pp->tok = *tok;
+        if (! sp_peek_pp_token_from_list(pp->macro_exp))
+          pp->macro_exp = pp->macro_exp->next;
         return 0;
       }
     }
@@ -376,28 +352,25 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
     pp->at_newline = false;
 
     if (pp_tok_is_identifier(&pp->tok)) {
-      sp_string_id ident_id = sp_get_pp_token_string_id(&pp->tok);
-      struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, ident_id);
-      if (macro) {
-        sp_clear_mem_pool(&pp->macro_exp_pool);
-        
-        bool expand = true;
-        struct sp_pp_token_list args;
-        sp_init_pp_token_list(&args, &pp->macro_exp_pool);
-        if (macro->is_function) {
-          // TODO: check if next token is '(' to decide whether we expand or not
-          expand = false;
-          if (expand) {
+      struct sp_pp_token ident = pp->tok;
+      sp_string_id ident_id = sp_get_pp_token_string_id(&ident);
+
+      struct sp_pp_token next;
+      if (sp_peek_nonspace_pp_ph3_token(pp, &next, false) < 0)
+        return -1;
+      
+      if (! pp_tok_is_punct(&next, PUNCT_HASHES)) {
+        struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, ident_id);
+        if (macro && (! macro->is_function || pp_tok_is_punct(&next, '('))) {
+          struct sp_pp_token_list args;
+          sp_init_pp_token_list(&args, &pp->macro_exp_pool);
+          if (macro->is_function) {
             // TODO: read args
             if (sp_pp_token_list_size(&args) != sp_pp_token_list_size(&macro->params))
               return set_error(pp, "invalid number of arguments in macro invocation");
           }
-        }
-        if (expand) {
-          sp_init_pp_token_list(&pp->macro_expansion, &pp->macro_exp_pool);
           if (expand_macro(pp, macro, &args) < 0)
             return -1;
-          sp_rewind_pp_token_list(&pp->macro_expansion);
           continue;
         }
       }

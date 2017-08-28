@@ -17,6 +17,7 @@ struct sp_pp_token_list_node {
 };
 
 struct sp_pp_token_list {
+  struct sp_pp_token_list *next;
   struct sp_mem_pool *pool;
   struct sp_pp_token_list_node *node_list;
   struct sp_pp_token_list_node *w_node;
@@ -24,6 +25,7 @@ struct sp_pp_token_list {
   int r_index;
 };
 
+struct sp_pp_token_list *sp_new_pp_token_list(struct sp_mem_pool *pool);
 void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool);
 int sp_pp_token_list_size(struct sp_pp_token_list *tl);
 int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok);

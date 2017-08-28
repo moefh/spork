@@ -20,15 +20,20 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->ast = NULL;
   pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
+  pp->macro_exp = NULL;
   sp_init_idht(&pp->macros, pool);
   sp_init_string_table(&pp->token_strings, pool);
   sp_init_buffer(&pp->tmp_buf, pool);
   sp_init_mem_pool(&pp->macro_exp_pool);
-  sp_init_pp_token_list(&pp->macro_expansion, &pp->macro_exp_pool);
 }
 
 void sp_destroy_preprocessor(struct sp_preprocessor *pp)
 {
+  while (pp->in) {
+    struct sp_input *next = pp->in->next;
+    sp_free_input(pp->in);
+    pp->in = next;
+  }
   sp_destroy_mem_pool(&pp->macro_exp_pool);
 }
 

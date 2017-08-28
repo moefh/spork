@@ -70,6 +70,7 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
   }
 
   sp_set_preprocessor_io(&pp, file, ast);
+  file = NULL;
   printf("===================================\n");
   struct sp_pp_token tok;
   do {
@@ -88,7 +89,6 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     printf("===================================\n");
   }
 
-  sp_free_input(file);
   sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);
   return 0;

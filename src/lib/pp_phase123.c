@@ -27,9 +27,12 @@
 #define CUR   ((in->pos   < in->size) ? (int)in->data[in->pos  ] : -1)
 #define NEXT  ((in->pos+1 < in->size) ? (int)in->data[in->pos+1] : -1)
 #define NEXT2 ((in->pos+2 < in->size) ? (int)in->data[in->pos+2] : -1)
-#define CUR_POS    (in->pos)
-#define ADVANCE()  (in->pos++)
-#define SET_POS(p) (in->pos = (p))
+
+#define ADVANCE()        (in->pos++)
+#define CUR_POS          (in->pos)
+#define SET_POS(p)       (in->pos = (p))
+#define CUR_IN_POS(in)   ((in)->pos)
+#define SET_IN_POS(in,p) ((in)->pos = (p))
 
 static bool skip_bs_newline(struct sp_input *in)
 {
@@ -397,7 +400,7 @@ bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp)
   return next_char_is_lparen(pp->in);
 }
 
-int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
+static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool parse_header)
 {
   int pos;
   int type = read_token(pp->in, &pp->tmp_buf, &pos, parse_header);
@@ -415,31 +418,31 @@ int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
   }
 
   // TODO: set location based on 'pos'
-  pp->tok.loc = sp_make_src_loc(sp_get_input_file_id(pp->in),0,0);
+  tok->loc = sp_make_src_loc(sp_get_input_file_id(pp->in),0,0);
 
   // space
   if (type == ' ') {
-    pp->tok.type = TOK_PP_SPACE;
+    tok->type = TOK_PP_SPACE;
     return 0;
   }
 
   // newline
   if (type == '\n') {
-    pp->tok.type = TOK_PP_NEWLINE;
+    tok->type = TOK_PP_NEWLINE;
     return 0;
   }
 
   // other
   if (type < 256) {
-    pp->tok.type = TOK_PP_OTHER;
-    pp->tok.data.other = type;
+    tok->type = TOK_PP_OTHER;
+    tok->data.other = type;
     return 0;
   }
 
   // punct
   if (type == TOK_PP_PUNCT) {
-    pp->tok.type = TOK_PP_PUNCT;
-    pp->tok.data.punct_id = sp_get_punct_id(pp->tmp_buf.p);
+    tok->type = TOK_PP_PUNCT;
+    tok->data.punct_id = sp_get_punct_id(pp->tmp_buf.p);
     return 0;
   }
 
@@ -447,7 +450,27 @@ int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
   sp_string_id str_id = sp_add_string(&pp->token_strings, pp->tmp_buf.p);
   if (str_id < 0)
     return sp_set_pp_error(pp, "out of memory");
-  pp->tok.type = type;
-  pp->tok.data.str_id = str_id;
+  tok->type = type;
+  tok->data.str_id = str_id;
   return 0;
+}
+
+int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
+{
+  return next_token(pp, &pp->tok, parse_header);
+}
+
+int sp_peek_nonspace_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header)
+{
+  int rewind_pos = CUR_IN_POS(pp->in);
+  do {
+    if (next_token(pp, next, parse_header) < 0)
+      goto err;
+  } while (next->type == TOK_PP_SPACE || next->type == TOK_PP_NEWLINE);
+  SET_IN_POS(pp->in, rewind_pos);
+  return 0;
+  
+ err:
+  SET_IN_POS(pp->in, rewind_pos);
+  return -1;
 }

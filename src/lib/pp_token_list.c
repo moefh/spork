@@ -7,8 +7,18 @@
 #include "mem_pool.h"
 #include "pp_token.h"
 
+struct sp_pp_token_list *sp_new_pp_token_list(struct sp_mem_pool *pool)
+{
+  struct sp_pp_token_list *tl = sp_malloc(pool, sizeof(struct sp_pp_token_list));
+  if (! tl)
+    return NULL;
+  sp_init_pp_token_list(tl, pool);
+  return tl;
+}
+
 void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool)
 {
+  tl->next = NULL;
   tl->pool = pool;
   tl->node_list = NULL;
   tl->w_node = NULL;
