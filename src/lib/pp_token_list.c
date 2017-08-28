@@ -1,13 +1,13 @@
-/* token_list.c */
+/* pp_token_list.c */
 
 #include <stdio.h>
 
 #include "internal.h"
-#include "token_list.h"
+#include "pp_token_list.h"
 #include "mem_pool.h"
-#include "token.h"
+#include "pp_token.h"
 
-void sp_init_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool)
+void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool)
 {
   tl->pool = pool;
   tl->node_list = NULL;
@@ -16,7 +16,7 @@ void sp_init_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool)
   tl->r_index = 0;
 }
 
-int sp_append_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok)
+int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok)
 {
   if (! tl->w_node || tl->w_node->size == NUM_TOKENS_PER_LIST_NODE) {
     struct sp_pp_token_list_node *node = sp_malloc(tl->pool, sizeof(struct sp_pp_token_list_node));
@@ -36,12 +36,12 @@ int sp_append_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok)
   return 0;
 }
 
-struct sp_pp_token *sp_rewind_token_list(struct sp_pp_token_list *tl)
+struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl)
 {
   //printf("rewind list to node %p\n", (void *) tl->node_list);
   tl->r_node = tl->node_list;
   tl->r_index = 0;
-  return sp_peek_token_from_list(tl);
+  return sp_peek_pp_token_from_list(tl);
 }
 
 int sp_pp_token_list_size(struct sp_pp_token_list *tl)
@@ -52,7 +52,7 @@ int sp_pp_token_list_size(struct sp_pp_token_list *tl)
   return size;
 }
 
-bool sp_read_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret)
+bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret)
 {
   if (! tl->r_node)
     return false;
@@ -65,7 +65,7 @@ bool sp_read_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **r
   return true;
 }
 
-struct sp_pp_token *sp_peek_token_from_list(struct sp_pp_token_list *tl)
+struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl)
 {
   if (! tl->r_node)
     return NULL;

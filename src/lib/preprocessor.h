@@ -6,8 +6,8 @@
 #include "internal.h"
 #include "input.h"
 #include "string_tab.h"
-#include "token.h"
-#include "token_list.h"
+#include "pp_token.h"
+#include "pp_token_list.h"
 #include "buffer.h"
 #include "id_hashtable.h"
 #include "pp_macro.h"
@@ -37,10 +37,12 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
 void sp_destroy_preprocessor(struct sp_preprocessor *pp);
 int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...);
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
-int sp_read_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
 void sp_dump_macros(struct sp_preprocessor *pp);
 
-int sp_next_pp_token(struct sp_preprocessor *pp, bool parse_header);
-bool sp_next_pp_char_is_lparen(struct sp_preprocessor *pp);
+int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header);
+bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp);
+int sp_next_pp_ph4_token(struct sp_preprocessor *pp);
+
+int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
 
 #endif /* PREPROCESSOR_H_FILE */

@@ -6,7 +6,7 @@
 #include "internal.h"
 #include "mem_pool.h"
 #include "string_tab.h"
-#include "token_list.h"
+#include "pp_token_list.h"
 
 struct sp_preprocessor;
 

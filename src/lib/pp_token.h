@@ -1,7 +1,7 @@
-/* token.h */
+/* pp_token.h */
 
-#ifndef TOKEN_H_FILE
-#define TOKEN_H_FILE
+#ifndef PP_TOKEN_H_FILE
+#define PP_TOKEN_H_FILE
 
 enum sp_pp_token_type {
   TOK_PP_EOF = 256,
@@ -106,4 +106,4 @@ const char *sp_get_punct_name(int punct_id);
 #define pp_tok_is_punct(tok, p)     ((tok)->type == TOK_PP_PUNCT && (tok)->data.punct_id == (p))
 #define pp_tok_is_identifier(tok)   ((tok)->type == TOK_PP_IDENTIFIER)
 
-#endif /* TOKEN_H_FILE */
+#endif /* PP_TOKEN_H_FILE */

@@ -11,8 +11,7 @@
 
 #include "preprocessor.h"
 #include "input.h"
-#include "ast.h"
-#include "token.h"
+#include "pp_token.h"
 
 #define ERR_ERROR                -1
 #define ERR_OUT_OF_MEMORY        -2
@@ -393,12 +392,12 @@ static bool next_char_is_lparen(struct sp_input *in)
   return false;
 }
 
-bool sp_next_pp_char_is_lparen(struct sp_preprocessor *pp)
+bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp)
 {
   return next_char_is_lparen(pp->in);
 }
 
-int sp_next_pp_token(struct sp_preprocessor *pp, bool parse_header)
+int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
 {
   int pos;
   int type = read_token(pp->in, &pp->tmp_buf, &pos, parse_header);

@@ -73,7 +73,7 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
   printf("===================================\n");
   struct sp_pp_token tok;
   do {
-    if (sp_read_token(&pp, &tok) < 0)
+    if (sp_next_pp_token(&pp, &tok) < 0)
       goto err;
     printf("%s", sp_dump_pp_token(&pp, &tok));
     if (pp_tok_is_newline(&tok))

@@ -1,4 +1,4 @@
-/* token.c */
+/* pp_token.c */
 
 #include <string.h>
 #include <stdio.h>
@@ -6,7 +6,7 @@
 
 #include "internal.h"
 #include "preprocessor.h"
-#include "token.h"
+#include "pp_token.h"
 
 /* punctuation */
 
