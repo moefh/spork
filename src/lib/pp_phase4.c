@@ -292,39 +292,38 @@ static int stringify_arg(struct sp_preprocessor *pp, struct sp_pp_token_list *ar
   char str[4096];  // enough according to "5.2.4.1 Translation limits"
   size_t str_len = 0;
 
-#define ENSURE_STR_SPACE(n)  do { if (str_len+(n)+1 >= sizeof(str)) goto err; } while (0)
+#define ENSURE_STR_SPACE(n)   do { if (str_len+(n)+1 >= sizeof(str)) goto err; } while (0)
+#define ADD_SPACE_IF_NEEDED() do { if (last_was_space) { ENSURE_STR_SPACE(1); str[str_len++] = ' '; last_was_space = false; } } while (0)
   
   bool last_was_space = false;
   struct sp_pp_token *tok = sp_rewind_pp_token_list(arg);
   while (sp_read_pp_token_from_list(arg, &tok)) {
     switch (tok->type) {
     case TOK_PP_EOF:
-      last_was_space = false;
+      ADD_SPACE_IF_NEEDED();
       break;
 
     case TOK_PP_NEWLINE:
     case TOK_PP_SPACE:
-      if (last_was_space)
-        continue;
-      ENSURE_STR_SPACE(1);
-      str[str_len++] = ' ';
       last_was_space = true;
       break;
 
     case TOK_PP_OTHER:
+      ADD_SPACE_IF_NEEDED();
       ENSURE_STR_SPACE(1);
       str[str_len++] = (char) tok->data.other;
       last_was_space = false;
       break;
 
     case TOK_PP_CHAR_CONST:
+      ADD_SPACE_IF_NEEDED();
       // TODO: how do we print this?
-      last_was_space = false;
       break;
     
     case TOK_PP_IDENTIFIER:
     case TOK_PP_HEADER_NAME:
     case TOK_PP_NUMBER:
+      ADD_SPACE_IF_NEEDED();
       {
         const char *src = sp_get_pp_token_string(pp, tok);
         size_t src_len = strlen(src);
@@ -336,6 +335,7 @@ static int stringify_arg(struct sp_preprocessor *pp, struct sp_pp_token_list *ar
       break;
 
     case TOK_PP_STRING:
+      ADD_SPACE_IF_NEEDED();
       {
         ENSURE_STR_SPACE(2);
         str[str_len++] = '\\';
@@ -357,6 +357,7 @@ static int stringify_arg(struct sp_preprocessor *pp, struct sp_pp_token_list *ar
       break;
 
     case TOK_PP_PUNCT:
+      ADD_SPACE_IF_NEEDED();
       {
         const char *src = sp_get_punct_name(tok->data.punct_id);
         size_t src_len = strlen(src);
@@ -417,6 +418,7 @@ static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, 
     if (pp_tok_is_identifier(t)) {
       struct sp_pp_token_list *arg = sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(t));
       if (arg) {
+        // TODO: expand tokens of 'arg' before inserting (6.10.3.1)
         struct sp_pp_token *a = sp_rewind_pp_token_list(arg);
         while (sp_read_pp_token_from_list(arg, &a)) {
           if (sp_append_pp_token(macro_exp, a) < 0)
@@ -575,6 +577,8 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
 
     if (! from_macro_exp) {
       if (IS_EOF()) {
+        if (pp->reading_macro_args)
+          return set_error(pp, "unterminated macro argument list");
         if (! pp->in->next)
           return 0;
         struct sp_input *next = pp->in->next;
