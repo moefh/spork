@@ -16,6 +16,11 @@ struct sp_pp_token_list_node {
   struct sp_pp_token tokens[NUM_TOKENS_PER_LIST_NODE];
 };
 
+struct sp_pp_token_list_pos {
+  struct sp_pp_token_list_node *node;
+  int index;
+};
+
 struct sp_pp_token_list {
   struct sp_pp_token_list *next;
   struct sp_mem_pool *pool;
@@ -32,6 +37,10 @@ int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok);
 struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl);
 bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret);
 struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl);
+struct sp_pp_token *sp_peek_nonblank_pp_token_from_list(struct sp_pp_token_list *tl);
 bool sp_pp_token_lists_are_equal(struct sp_pp_token_list *l1, struct sp_pp_token_list *l2);
+
+#define sp_get_pp_token_list_pos(tl)      ((struct sp_pp_token_list_pos) { .node = (tl)->r_node, .index = (tl)->r_index })
+#define sp_set_pp_token_list_pos(tl,pos)  do { (tl)->r_node = (pos).node; (tl)->r_index = (pos).index; } while (0)
 
 #endif /* PP_TOKEN_LIST_H_FILE */

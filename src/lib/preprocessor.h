@@ -27,6 +27,7 @@ struct sp_preprocessor {
   struct sp_id_hashtable macros;
   struct sp_pp_token_list *macro_exp;
 
+  bool reading_macro_args;
   bool at_newline;
   struct sp_pp_token tok;
   struct sp_src_loc loc;

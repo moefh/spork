@@ -180,52 +180,6 @@ static char to_hex_char(int i)
 }
 const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
 {
-  static char str[256];
-  
-  switch (tok->type) {
-  case TOK_EOF:
-    snprintf(str, sizeof(str), "<end-of-file>");
-    return str;
-
-  case TOK_PP_NEWLINE:
-    snprintf(str, sizeof(str), "<newline>");
-    return str;
-
-  case TOK_PP_SPACE:
-    snprintf(str, sizeof(str), "<space>");
-    return str;
-
-  case TOK_PP_OTHER:
-    snprintf(str, sizeof(str), "<other>");
-    return str;
-
-  case TOK_KEYWORD:
-    snprintf(str, sizeof(str), "%s", sp_get_token_keyword(tok));
-    return str;
-
-  case TOK_ENUM_CONST:
-    snprintf(str, sizeof(str), "%s", sp_get_token_string(ast, tok));
-    return str;
-
-  case TOK_PP_CHAR_CONST:
-    if (tok->data.c >= 32 && tok->data.c < 127)
-      snprintf(str, sizeof(str), "%c", tok->data.c);
-    else
-      snprintf(str, sizeof(str), "'\\x%02x'", (unsigned char) tok->data.c);
-    return str;
-    
-  case TOK_IDENTIFIER:
-    snprintf(str, sizeof(str), "%s", sp_get_token_string(ast, tok));
-    return str;
-    
-  case TOK_PUNCT:
-    snprintf(str, sizeof(str), "%s", sp_get_punct_name(tok->data.punct_id));
-    return str;
-
-  case TOK_PP_HEADER_NAME:
-    snprintf(str, sizeof(str), "<%s>", sp_get_token_string(ast, tok));
-    return str;
-    
   case TOK_STRING:
     {
       const uint8_t *in = (const uint8_t *) sp_get_token_string(ast, tok);
@@ -260,22 +214,6 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
       *out++ = '\0';
     }
     return str;
-    
-  case TOK_PP_NUMBER:
-    snprintf(str, sizeof(str), "%g", tok->data.d);
-    return str;
-
-  case TOK_FLOAT_CONST:
-    snprintf(str, sizeof(str), "%g", tok->data.d);
-    return str;
-    
-  case TOK_INT_CONST:
-    snprintf(str, sizeof(str), "%" PRIu64, tok->data.i);
-    return str;
-  }
-  
-  snprintf(str, sizeof(str), "<unknown token type %d>", tok->type);
-  return str;
 }
 #endif
 
@@ -306,11 +244,14 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     
   case TOK_PP_IDENTIFIER:
   case TOK_PP_HEADER_NAME:
-  case TOK_PP_STRING:
   case TOK_PP_NUMBER:
     snprintf(str, sizeof(str), "%s", sp_get_pp_token_string(pp, tok));
     return str;
-    
+
+  case TOK_PP_STRING:
+    snprintf(str, sizeof(str), "\"%s\"", sp_get_pp_token_string(pp, tok));
+    return str;
+
   case TOK_PP_PUNCT:
     snprintf(str, sizeof(str), "%s", sp_get_punct_name(tok->data.punct_id));
     return str;

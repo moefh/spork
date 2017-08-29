@@ -36,8 +36,6 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
 const char *sp_get_macro_name(struct sp_macro_def *macro, struct sp_preprocessor *pp);
 
 struct sp_macro_args *sp_new_macro_args(struct sp_macro_def *macro, struct sp_mem_pool *pool);
-int sp_read_macro_args(struct sp_preprocessor *pp, struct sp_macro_args *args,
-                       struct sp_macro_def *macro, sp_pp_token_reader *reader, void *reader_data);
 struct sp_pp_token_list *sp_get_macro_arg(struct sp_macro_def *macro, struct sp_macro_args *args, int param_name_id);
 
 void sp_dump_macro(struct sp_macro_def *macro, struct sp_preprocessor *pp);

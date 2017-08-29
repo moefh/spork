@@ -42,7 +42,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
         return sp_set_pp_error(pp, "__VA_ARGS__ is only allowed in variadic macros");
     }
     
-    struct sp_pp_token *next = sp_peek_pp_token_from_list(&macro->body);
+    struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&macro->body);
     if (pp_tok_is_punct(tok, PUNCT_HASHES) && (pos == 0 || next == NULL))
       return sp_set_pp_error(pp, "## is not allowed at the start or end of macro body");
   
@@ -50,7 +50,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
       bool next_is_some_argument = false;
       if (next && pp_tok_is_identifier(next)) {
         for (int i = 0; i < macro->n_params; i++) {
-          if (next->data.str_id == macro->param_name_ids[i]) {
+          if (sp_get_pp_token_string_id(next) == macro->param_name_ids[i]) {
             next_is_some_argument = true;
             break;
           }
@@ -147,45 +147,11 @@ struct sp_macro_args *sp_new_macro_args(struct sp_macro_def *macro, struct sp_me
   return args;
 }
 
-int sp_read_macro_args(struct sp_preprocessor *pp, struct sp_macro_args *args,
-                       struct sp_macro_def *macro, sp_pp_token_reader *reader, void *reader_data)
+struct sp_pp_token_list *sp_get_macro_arg(struct sp_macro_def *macro, struct sp_macro_args *args, sp_string_id param_name_id)
 {
-  struct sp_pp_token tok;
-  if (reader(pp, &tok, reader_data) < 0)
-    return -1;
-  if (! pp_tok_is_punct(&tok, '('))
-    return sp_set_pp_error(pp, "expected '(', found '%s'", sp_dump_pp_token(pp, &tok));
-
-  int paren_level = 0;
-  while (true) {
-    if (reader(pp, &tok, reader_data) < 0)
-      return -1;
-    printf("<<ARG: '%s'>>", sp_dump_pp_token(pp, &tok));
-    if (paren_level == 0) {
-      if (pp_tok_is_punct(&tok, ')')) {
-        if (args->len < macro->n_params)
-          args->len++;
-        break;
-      }
-      if (pp_tok_is_punct(&tok, ',')) {
-        args->len++;
-        if (args->len < args->cap)
-          continue;
-        if (! macro->is_variadic)
-          return sp_set_pp_error(pp, "too many arguments in macro invocation");
-      }
-    }
-    if (pp_tok_is_punct(&tok, '('))
-      paren_level++;
-    else if (pp_tok_is_punct(&tok, ')'))
-      paren_level--;
-
-    int add_index = args->len;
-    if (add_index >= args->cap)
-      add_index = args->cap-1;
-    if (sp_append_pp_token(&args->args[add_index], &tok) < 0)
-      return sp_set_pp_error(pp, "out of memory");
+  for (int i = 0; i < macro->n_params; i++) {
+    if (param_name_id == macro->param_name_ids[i])
+      return &args->args[i];
   }
-  
-  return 0;
+  return NULL;
 }

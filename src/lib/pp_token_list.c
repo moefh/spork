@@ -98,3 +98,18 @@ struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl)
     return NULL;
   return &tl->r_node->tokens[tl->r_index];
 }
+
+struct sp_pp_token *sp_peek_nonblank_pp_token_from_list(struct sp_pp_token_list *tl)
+{
+  struct sp_pp_token_list_pos pos = sp_get_pp_token_list_pos(tl);
+
+  struct sp_pp_token *tok = NULL;
+  do {
+    if (! sp_read_pp_token_from_list(tl, &tok))
+      break;
+  } while (pp_tok_is_space(tok) || pp_tok_is_newline(tok));
+
+  sp_set_pp_token_list_pos(tl, pos);
+  return tok;
+}
+

@@ -1,13 +1,23 @@
 
-#define str(x) # x
+#define STR(x) # x
 
-"hello\kworld"
+#define STRVAR(...) # __VA_ARGS__
 
-#define X /*
-hello */ Y
+// TODO: should remove trailing spaces from args
+STR(  hello \n /* x */
+//x
+ world!  )
 
-X
+//#define X(x) #
 
-str(  hello \n /* x */  //\
-x
- world! )
+STR(#)
+STR("hello, world!\n")
+STR(1.2.3)
+STR(@
+hashtag!)
+
+
+STRVAR()
+STRVAR(a)
+STRVAR(a,b)
+STRVAR(a, b)

@@ -262,11 +262,11 @@ static int process_pp_directive(struct sp_preprocessor *pp)
   
   if (! IS_IDENTIFIER())
     return set_error(pp, "invalid input after '#': '%s'", sp_dump_pp_token(pp, &pp->tok));
-  
+
   const char *directive_name = sp_get_pp_token_string(pp, &pp->tok);
   enum pp_directive_type directive;
   if (! find_pp_directive(directive_name, &directive))
-    return set_error(pp, "invalid preprocessor directive: '#%s'", directive_name);
+    return set_error(pp, "invalid preprocessing directive: '#%s'", directive_name);
   
   switch (directive) {
   case PP_DIR_include: return process_include(pp);
@@ -287,10 +287,104 @@ static int process_pp_directive(struct sp_preprocessor *pp)
   return set_error(pp, "invalid preprocessor directive: '#%s'", directive_name);
 }
 
-static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_pp_token_list *args)
+static int stringify_arg(struct sp_preprocessor *pp, struct sp_pp_token_list *arg, struct sp_pp_token *ret)
+{
+  char str[4096];  // enough according to "5.2.4.1 Translation limits"
+  size_t str_len = 0;
+
+#define ENSURE_STR_SPACE(n)  do { if (str_len+(n)+1 >= sizeof(str)) goto err; } while (0)
+  
+  bool last_was_space = false;
+  struct sp_pp_token *tok = sp_rewind_pp_token_list(arg);
+  while (sp_read_pp_token_from_list(arg, &tok)) {
+    switch (tok->type) {
+    case TOK_PP_EOF:
+      last_was_space = false;
+      break;
+
+    case TOK_PP_NEWLINE:
+    case TOK_PP_SPACE:
+      if (last_was_space)
+        continue;
+      ENSURE_STR_SPACE(1);
+      str[str_len++] = ' ';
+      last_was_space = true;
+      break;
+
+    case TOK_PP_OTHER:
+      ENSURE_STR_SPACE(1);
+      str[str_len++] = (char) tok->data.other;
+      last_was_space = false;
+      break;
+
+    case TOK_PP_CHAR_CONST:
+      // TODO: how do we print this?
+      last_was_space = false;
+      break;
+    
+    case TOK_PP_IDENTIFIER:
+    case TOK_PP_HEADER_NAME:
+    case TOK_PP_NUMBER:
+      {
+        const char *src = sp_get_pp_token_string(pp, tok);
+        size_t src_len = strlen(src);
+        ENSURE_STR_SPACE(src_len);
+        memcpy(str + str_len, src, src_len);
+        str_len += src_len;
+      }
+      last_was_space = false;
+      break;
+
+    case TOK_PP_STRING:
+      {
+        ENSURE_STR_SPACE(2);
+        str[str_len++] = '\\';
+        str[str_len++] = '\"';
+        const char *src = sp_get_pp_token_string(pp, tok);
+        for (const char *s = src; *s != '\0'; s++) {
+          if (*s == '\\' || *s == '"') {
+            ENSURE_STR_SPACE(1);
+            str[str_len++] = '\\';
+          }
+          ENSURE_STR_SPACE(1);
+          str[str_len++] = *s;
+        }
+        ENSURE_STR_SPACE(2);
+        str[str_len++] = '\\';
+        str[str_len++] = '\"';
+      }
+      last_was_space = false;
+      break;
+
+    case TOK_PP_PUNCT:
+      {
+        const char *src = sp_get_punct_name(tok->data.punct_id);
+        size_t src_len = strlen(src);
+        ENSURE_STR_SPACE(src_len);
+        memcpy(str + str_len, src, src_len);
+        str_len += src_len;
+      }
+      last_was_space = false;
+      break;
+    }
+  }
+  str[str_len] = '\0';
+  ret->type = TOK_PP_STRING;
+  ret->data.str_id = sp_add_string(&pp->token_strings, str);
+  if (ret->data.str_id < 0)
+    return set_error(pp, "out of memory");
+  return 0;
+
+ err:
+  return set_error(pp, "string too large");
+}
+
+static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args)
 {
   UNUSED(args);
 
+  //printf("expanding macro '%s' with %d args\n", sp_get_macro_name(macro, pp), args->len);
+  
   struct sp_pp_token_list *macro_exp = sp_new_pp_token_list(&pp->macro_exp_pool);
   if (! macro_exp)
     return set_error(pp, "out of memory");
@@ -299,28 +393,177 @@ static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, 
 
   struct sp_pp_token *t = sp_rewind_pp_token_list(&macro->body);
   while (sp_read_pp_token_from_list(&macro->body, &t)) {
+    //printf("adding token '%s' to macro_exp\n", sp_dump_pp_token(pp, t));
+
+    if (pp_tok_is_punct(t, '#')) {
+      struct sp_pp_token_list *arg = NULL;
+      while (! arg) {
+        if (! sp_read_pp_token_from_list(&macro->body, &t))
+          break;
+        if (! pp_tok_is_identifier(t))
+          continue;
+        arg = sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(t));
+        if (! arg)
+          return set_error(pp, "'#' must be followed by a parameter name");
+      }
+      struct sp_pp_token str;
+      if (stringify_arg(pp, arg, &str) < 0)
+        return -1;
+      if (sp_append_pp_token(macro_exp, &str) < 0)
+        return set_error(pp, "out of memory");
+      continue;
+    }
+    
+    if (pp_tok_is_identifier(t)) {
+      struct sp_pp_token_list *arg = sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(t));
+      if (arg) {
+        struct sp_pp_token *a = sp_rewind_pp_token_list(arg);
+        while (sp_read_pp_token_from_list(arg, &a)) {
+          if (sp_append_pp_token(macro_exp, a) < 0)
+            return set_error(pp, "out of memory");
+        }
+        continue;
+      }
+    }
     if (sp_append_pp_token(macro_exp, t) < 0)
       return set_error(pp, "out of memory");
   }
+
+  sp_rewind_pp_token_list(macro_exp);
+  macro_exp->next = pp->macro_exp;
+  pp->macro_exp = macro_exp;
   
   macro->enabled = true;
   return 0;
 }
 
+static int read_macro_args(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args)
+{
+  pp->reading_macro_args = true;
+
+  //printf("READING MACRO ARGS FOR '%s'\n", sp_get_macro_name(macro, pp));
+
+  do {
+    if (sp_next_pp_ph4_token(pp) < 0)
+      return -1;
+  } while (IS_SPACE() || IS_NEWLINE());
+  if (! IS_PUNCT('('))
+    return set_error(pp, "expected '(', found '%s'", sp_dump_pp_token(pp, &pp->tok));
+
+  int paren_level = 0;
+  bool arg_start = true;
+  while (true) {
+    // skip initial spaces and newlines
+    do {
+      if (sp_next_pp_ph4_token(pp) < 0)
+        return -1;
+      if (! arg_start)
+        break;
+    } while (IS_SPACE() || IS_NEWLINE());
+    arg_start = false;
+    
+    // check end or next
+    if (paren_level == 0) {
+      if (IS_PUNCT(')')) {
+        if (args->len < macro->n_params)
+          args->len++;
+        break;
+      }
+      if (IS_PUNCT(',')) {
+        args->len++;
+        if (args->len < args->cap) {
+          arg_start = true;
+          continue;
+        }
+        if (! macro->is_variadic)
+          return set_error(pp, "too many arguments in macro invocation");
+      }
+    }
+    if (IS_PUNCT('('))
+      paren_level++;
+    else if (IS_PUNCT(')'))
+      paren_level--;
+
+    // add
+    int add_index = args->len;
+    //printf("ADDING TOKEN '%s' TO ARG %d\n", sp_dump_pp_token(pp, &pp->tok), add_index);
+    if (add_index >= args->cap) {
+      if (! macro->is_variadic)
+        return set_error(pp, "too many arguments in macro invocation");
+      add_index = args->cap-1;
+    }
+    if (sp_append_pp_token(&args->args[add_index], &pp->tok) < 0)
+      return set_error(pp, "out of memory");
+  }
+
+  // TODO: remove trailing spaces and newlines from each argument
+  
+  if (macro->is_variadic) {
+    if (args->len < macro->n_params)
+      return set_error(pp, "macro '%s' requires at least %d arguments, found %d", sp_get_macro_name(macro, pp), macro->n_params, args->len);
+  } else {
+    if (args->len != macro->n_params)
+      return set_error(pp, "macro '%s' requires %d arguments, found %d", sp_get_macro_name(macro, pp), macro->n_params, args->len);
+  }
+  pp->reading_macro_args = false;
+  return 0;
+}
+
+static int peek_nonspace_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
+{
+  // peek in macro expansion tokens, if any
+  if (pp->macro_exp) {
+    struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(pp->macro_exp);
+    struct sp_pp_token_list *macro_exp = pp->macro_exp;
+
+    bool found = false;
+    while (macro_exp && ! found) {
+      struct sp_pp_token *next;
+      while (sp_read_pp_token_from_list(pp->macro_exp, &next)) {
+        if (! pp_tok_is_space(next) && ! pp_tok_is_newline(next)) {
+          //printf("NEXT NONSPACE: '%s' (type %d)\n", sp_dump_pp_token(pp, next), next->type);
+          *tok = *next;
+          found = true;
+          break;
+        }
+      }
+      if (! found)
+        macro_exp = macro_exp->next;
+    }
+    
+    sp_set_pp_token_list_pos(pp->macro_exp, save_pos);
+    if (found)
+      return 0;
+  }
+
+  // peek in input
+  return sp_peek_nonspace_pp_ph3_token(pp, tok, false);
+}
+
+static bool next_token_from_macro_exp(struct sp_preprocessor *pp)
+{
+  if (pp->macro_exp) {
+    struct sp_pp_token *tok;
+    if (sp_read_pp_token_from_list(pp->macro_exp, &tok)) {
+      pp->tok = *tok;
+      while (pp->macro_exp && ! sp_peek_pp_token_from_list(pp->macro_exp))
+        pp->macro_exp = pp->macro_exp->next;
+      //printf("* read from macro_exp: '%s'\n", sp_dump_pp_token(pp, tok));
+      return true;
+    }
+    while (pp->macro_exp && ! sp_peek_pp_token_from_list(pp->macro_exp))
+      pp->macro_exp = pp->macro_exp->next;
+    //printf("* macro_exp terminated\n");
+  }
+  return false;
+}
+
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
 {
   while (true) {
-    if (pp->macro_exp) {
-      struct sp_pp_token *tok;
-      if (sp_read_pp_token_from_list(pp->macro_exp, &tok)) {
-        pp->tok = *tok;
-        if (! sp_peek_pp_token_from_list(pp->macro_exp))
-          pp->macro_exp = pp->macro_exp->next;
-        return 0;
-      }
-    }
-    
-    NEXT_TOKEN();
+    bool from_macro_exp = next_token_from_macro_exp(pp);
+    if (! from_macro_exp)
+      NEXT_TOKEN();
 
     if (IS_NEWLINE()) {
       //printf("!!newline!!");
@@ -330,47 +573,60 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
 
     //printf("!!%s!!", sp_dump_pp_token(pp, &pp->tok));
 
-    if (IS_EOF()) {
-      if (! pp->in->next)
-        return 0;
-      struct sp_input *next = pp->in->next;
-      sp_free_input(pp->in);
-      pp->in = next;
-      pp->at_newline = true;
-      continue;
-    }
+    if (! from_macro_exp) {
+      if (IS_EOF()) {
+        if (! pp->in->next)
+          return 0;
+        struct sp_input *next = pp->in->next;
+        sp_free_input(pp->in);
+        pp->in = next;
+        pp->at_newline = true;
+        continue;
+      }
   
-    if (IS_PUNCT('#')) {
-      if (! pp->at_newline)
-        return 0;
-      if (process_pp_directive(pp) < 0)
-        return -1;
-      pp->at_newline = true;
-      continue;
+      if (IS_PUNCT('#')) {
+        //printf("!!!PUNCT!!! %d\n", pp->reading_macro_args);
+        if (! pp->at_newline)
+          return 0;
+        if (pp->reading_macro_args)
+          return set_error(pp, "preprocessing directive in macro arguments");
+        if (process_pp_directive(pp) < 0)
+          return -1;
+        pp->at_newline = true;
+        continue;
+      }
     }
-
+      
     pp->at_newline = false;
 
     if (pp_tok_is_identifier(&pp->tok)) {
       struct sp_pp_token ident = pp->tok;
       sp_string_id ident_id = sp_get_pp_token_string_id(&ident);
 
-      struct sp_pp_token next;
-      if (sp_peek_nonspace_pp_ph3_token(pp, &next, false) < 0)
-        return -1;
+      //printf("-> ident '%s' (%d)\n", sp_get_string(&pp->token_strings, ident_id), ident_id);
       
+      struct sp_pp_token next;
+      if (peek_nonspace_token(pp, &next) < 0)
+        return -1;
+
+      //if (ident_id == 2) printf("deciding on expansion: next nonspace is '%s'\n", sp_dump_pp_token(pp, &next));
+        
       if (! pp_tok_is_punct(&next, PUNCT_HASHES)) {
         struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, ident_id);
-        if (macro && (! macro->is_function || pp_tok_is_punct(&next, '('))) {
-          struct sp_pp_token_list args;
-          sp_init_pp_token_list(&args, &pp->macro_exp_pool);
+        if (macro && macro->enabled && (! macro->is_function || pp_tok_is_punct(&next, '('))) {
           if (macro->is_function) {
-            // TODO: read args
-            if (sp_pp_token_list_size(&args) != sp_pp_token_list_size(&macro->params))
-              return set_error(pp, "invalid number of arguments in macro invocation");
+            //printf("expanding function macro\n");
+            struct sp_macro_args *args = sp_new_macro_args(macro, &pp->macro_exp_pool);
+            if (read_macro_args(pp, macro, args) < 0)
+              return -1;
+            if (expand_macro(pp, macro, args) < 0)
+              return -1;
+          } else {
+            //printf("expanding object macro\n");
+            sp_rewind_pp_token_list(&macro->body);
+            macro->body.next = pp->macro_exp;
+            pp->macro_exp = &macro->body;
           }
-          if (expand_macro(pp, macro, &args) < 0)
-            return -1;
           continue;
         }
       }

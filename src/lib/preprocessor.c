@@ -20,6 +20,7 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->ast = NULL;
   pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
+  pp->reading_macro_args = false;
   pp->macro_exp = NULL;
   sp_init_idht(&pp->macros, pool);
   sp_init_string_table(&pp->token_strings, pool);
@@ -43,6 +44,7 @@ void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, str
   pp->ast = ast;
   pp->loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
   pp->at_newline = true;
+  pp->reading_macro_args = false;
 }
 
 #if 0

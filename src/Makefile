@@ -12,7 +12,7 @@ lib/libspork.a:
 	$(MAKE) -C lib
 
 clean:
-	rm -f fh *.o *~
+	rm -f spork *.o *~
 	$(MAKE) -C lib clean
 
 %.o: %.c
