@@ -7,42 +7,44 @@
 #include "mem_pool.h"
 #include "pp_token.h"
 
-struct sp_pp_token_list *sp_new_pp_token_list(struct sp_mem_pool *pool)
+struct sp_pp_token_list *sp_new_pp_token_list(struct sp_mem_pool *pool, int page_size)
 {
   struct sp_pp_token_list *tl = sp_malloc(pool, sizeof(struct sp_pp_token_list));
   if (! tl)
     return NULL;
-  sp_init_pp_token_list(tl, pool);
+  sp_init_pp_token_list(tl, pool, page_size);
   return tl;
 }
 
-void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool)
+void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool, int page_size)
 {
   tl->next = NULL;
   tl->pool = pool;
-  tl->node_list = NULL;
-  tl->w_node = NULL;
-  tl->r_node = NULL;
+  tl->page_list = NULL;
+  tl->last_page = NULL;
+  tl->r_page = NULL;
   tl->r_index = 0;
+  tl->page_size = page_size;
 }
 
 int sp_append_pp_token(struct sp_pp_token_list *tl, struct sp_pp_token *tok)
 {
-  if (! tl->w_node || tl->w_node->size == NUM_TOKENS_PER_LIST_NODE) {
-    struct sp_pp_token_list_node *node = sp_malloc(tl->pool, sizeof(struct sp_pp_token_list_node));
+  if (! tl->last_page || tl->last_page->size == tl->page_size) {
+    struct sp_pp_token_list_page *node = sp_malloc(tl->pool, (sizeof(struct sp_pp_token_list_page)
+                                                              + tl->page_size*sizeof(struct sp_pp_token)));
     if (! node)
       return -1;
     node->next = NULL;
     node->size = 0;
 
-    if (! tl->w_node)
-      tl->node_list = node;
+    if (! tl->last_page)
+      tl->page_list = node;
     else
-      tl->w_node->next = node;
-    tl->w_node = node;
+      tl->last_page->next = node;
+    tl->last_page = node;
   }
 
-  tl->w_node->tokens[tl->w_node->size++] = *tok;
+  tl->last_page->tokens[tl->last_page->size++] = *tok;
   return 0;
 }
 
@@ -65,8 +67,8 @@ bool sp_pp_token_lists_are_equal(struct sp_pp_token_list *l1, struct sp_pp_token
 
 struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl)
 {
-  //printf("rewind list to node %p\n", (void *) tl->node_list);
-  tl->r_node = tl->node_list;
+  //printf("rewind list to node %p\n", (void *) tl->page_list);
+  tl->r_page = tl->page_list;
   tl->r_index = 0;
   return sp_peek_pp_token_from_list(tl);
 }
@@ -74,19 +76,19 @@ struct sp_pp_token *sp_rewind_pp_token_list(struct sp_pp_token_list *tl)
 int sp_pp_token_list_size(struct sp_pp_token_list *tl)
 {
   int size = 0;
-  for (struct sp_pp_token_list_node *node = tl->node_list; node != NULL; node = node->next)
-    size += node->size;
+  for (struct sp_pp_token_list_page *page = tl->page_list; page != NULL; page = page->next)
+    size += page->size;
   return size;
 }
 
 bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret)
 {
-  if (! tl->r_node)
+  if (! tl->r_page)
     return false;
 
-  *ret = &tl->r_node->tokens[tl->r_index++];
-  if (tl->r_index >= tl->r_node->size) {
-    tl->r_node = tl->r_node->next;
+  *ret = &tl->r_page->tokens[tl->r_index++];
+  if (tl->r_index >= tl->r_page->size) {
+    tl->r_page = tl->r_page->next;
     tl->r_index = 0;
   }
   return true;
@@ -94,9 +96,9 @@ bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token 
 
 struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl)
 {
-  if (! tl->r_node)
+  if (! tl->r_page)
     return NULL;
-  return &tl->r_node->tokens[tl->r_index];
+  return &tl->r_page->tokens[tl->r_index];
 }
 
 struct sp_pp_token *sp_peek_nonblank_pp_token_from_list(struct sp_pp_token_list *tl)

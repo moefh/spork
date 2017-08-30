@@ -161,6 +161,7 @@ bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2)
   case TOK_PP_PUNCT:
     return t1->data.punct_id == t2->data.punct_id;
 
+  case TOK_PP_ENABLE_MACRO:
   case TOK_PP_HEADER_NAME:
   case TOK_PP_STRING:
   case TOK_PP_IDENTIFIER:
@@ -224,6 +225,10 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
   switch (tok->type) {
   case TOK_PP_EOF:
     snprintf(str, sizeof(str), "<end-of-file>");
+    return str;
+
+  case TOK_PP_ENABLE_MACRO:
+    snprintf(str, sizeof(str), "<enable-macro '%s'>", sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_NEWLINE:

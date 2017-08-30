@@ -12,8 +12,10 @@ struct sp_preprocessor;
 
 struct sp_macro_def {
   sp_string_id name_id;
+  bool is_builtin_special;
   bool is_function;
   bool is_variadic;
+  bool is_named_variadic;
   bool enabled;
   struct sp_pp_token_list params;
   struct sp_pp_token_list body;
@@ -31,7 +33,7 @@ struct sp_macro_args {
 typedef int sp_pp_token_reader(struct sp_preprocessor *pp, struct sp_pp_token *tok, void *reader_data);
 
 struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id name_id,
-                                      bool is_function, bool last_param_is_variadic,
+                                      bool is_function, bool is_variadic, bool is_named_variadic,
                                       struct sp_pp_token_list *params, struct sp_pp_token_list *body);
 const char *sp_get_macro_name(struct sp_macro_def *macro, struct sp_preprocessor *pp);
 

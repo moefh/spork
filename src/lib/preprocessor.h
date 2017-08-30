@@ -19,7 +19,7 @@ struct sp_preprocessor {
   struct sp_ast *ast;
 
   struct sp_input *in;
-  struct sp_pp_token_list *in_macro_exp;
+  struct sp_pp_token_list *in_tokens;
 
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
@@ -27,11 +27,15 @@ struct sp_preprocessor {
   
   struct sp_buffer tmp_buf;
   struct sp_id_hashtable macros;
-  
-  bool reading_macro_args;
-  bool at_newline;
+
+  // phase 3:
   struct sp_pp_token tok;
   struct sp_src_loc loc;
+
+  // phase 4:
+  bool reading_macro_args;
+  bool last_was_space;
+  bool at_newline;
 };
 
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
@@ -40,9 +44,11 @@ int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...) SP_PRINTF_FORMAT
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
 void sp_dump_macros(struct sp_preprocessor *pp);
 
-int sp_peek_nonspace_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header);
+int sp_peek_nonblank_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header);
 int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header);
 bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp);
+
+int sp_process_pp_directive(struct sp_preprocessor *pp);
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp);
 
 int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);

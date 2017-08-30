@@ -21,7 +21,7 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
   pp->reading_macro_args = false;
-  pp->in_macro_exp = NULL;
+  pp->in_tokens = NULL;
   sp_init_idht(&pp->macros, pool);
   sp_init_string_table(&pp->token_strings, pool);
   sp_init_buffer(&pp->tmp_buf, pool);

@@ -7,6 +7,8 @@ enum sp_pp_token_type {
   TOK_PP_EOF = 256,
   TOK_PP_SPACE,
   TOK_PP_NEWLINE,
+  TOK_PP_ENABLE_MACRO,
+  
   TOK_PP_HEADER_NAME,
   TOK_PP_IDENTIFIER,
   TOK_PP_NUMBER,
@@ -101,6 +103,7 @@ int sp_get_punct_id(char *name);
 const char *sp_get_punct_name(int punct_id);
 
 #define pp_tok_is_eof(tok)          ((tok)->type == TOK_PP_EOF)
+#define pp_tok_is_enable_macro(tok) ((tok)->type == TOK_PP_ENABLE_MACRO)
 #define pp_tok_is_newline(tok)      ((tok)->type == TOK_PP_NEWLINE)
 #define pp_tok_is_space(tok)        ((tok)->type == TOK_PP_SPACE)
 #define pp_tok_is_number(tok)       ((tok)->type == TOK_PP_NUMBER)

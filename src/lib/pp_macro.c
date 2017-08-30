@@ -36,7 +36,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
   int pos = 0;
   struct sp_pp_token *tok = sp_rewind_pp_token_list(&macro->body);
   while (sp_read_pp_token_from_list(&macro->body, &tok)) {
-    if ((! macro->is_variadic) && pp_tok_is_identifier(tok)) {
+    if ((! macro->is_variadic || macro->is_named_variadic) && pp_tok_is_identifier(tok)) {
       const char *ident = sp_get_pp_token_string(pp, tok);
       if (strcmp(ident, "__VA_ARGS__") == 0)
         return sp_set_pp_error(pp, "__VA_ARGS__ is only allowed in variadic macros");
@@ -65,7 +65,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
 }
 
 struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id name_id,
-                                      bool is_function, bool last_param_is_variadic,
+                                      bool is_function, bool is_variadic, bool is_named_variadic,
                                       struct sp_pp_token_list *params, struct sp_pp_token_list *body)
 {
   int n_params = sp_pp_token_list_size(params);
@@ -74,9 +74,11 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
     return NULL;
   macro->name_id = name_id;
   macro->n_params = n_params;
+  macro->is_builtin_special = false;
   macro->enabled = true;
   macro->is_function = is_function;
-  macro->is_variadic = last_param_is_variadic;
+  macro->is_variadic = is_variadic;
+  macro->is_named_variadic = is_named_variadic;
   macro->params = *params;
   macro->body = *body;
 
@@ -114,7 +116,7 @@ void sp_dump_macro(struct sp_macro_def *macro, struct sp_preprocessor *pp)
         printf("%s", sp_dump_pp_token(pp, t));
         if (sp_peek_pp_token_from_list(&macro->params))
           printf(", ");
-        else if (macro->is_variadic)
+        else if (macro->is_named_variadic)
           printf("...");
       }
     }
@@ -143,7 +145,7 @@ struct sp_macro_args *sp_new_macro_args(struct sp_macro_def *macro, struct sp_me
   args->cap = n_args;
   args->len = 0;
   for (int i = 0; i < n_args; i++)
-    sp_init_pp_token_list(&args->args[i], pool);
+    sp_init_pp_token_list(&args->args[i], pool, 16);
   return args;
 }
 

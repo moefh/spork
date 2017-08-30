@@ -352,7 +352,7 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
     return read_ident(in, buf);
   }
 
-  // TODO: character constant
+  /* TODO: character constant */
   
   /* punctuation */
   buf->size = 0;
@@ -466,7 +466,7 @@ int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
   return next_token(pp, &pp->tok, parse_header);
 }
 
-int sp_peek_nonspace_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header)
+int sp_peek_nonblank_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header)
 {
   int rewind_pos = CUR_IN_POS(pp->in);
   do {
