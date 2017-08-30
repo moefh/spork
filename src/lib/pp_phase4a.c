@@ -432,8 +432,8 @@ static int expand_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, 
   }
 
   sp_rewind_pp_token_list(macro_exp);
-  macro_exp->next = pp->macro_exp;
-  pp->macro_exp = macro_exp;
+  macro_exp->next = pp->in_macro_exp;
+  pp->in_macro_exp = macro_exp;
   
   macro->enabled = true;
   return 0;
@@ -514,14 +514,14 @@ static int read_macro_args(struct sp_preprocessor *pp, struct sp_macro_def *macr
 static int peek_nonspace_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
 {
   // peek in macro expansion tokens, if any
-  if (pp->macro_exp) {
-    struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(pp->macro_exp);
-    struct sp_pp_token_list *macro_exp = pp->macro_exp;
+  if (pp->in_macro_exp) {
+    struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(pp->in_macro_exp);
+    struct sp_pp_token_list *macro_exp = pp->in_macro_exp;
 
     bool found = false;
     while (macro_exp && ! found) {
       struct sp_pp_token *next;
-      while (sp_read_pp_token_from_list(pp->macro_exp, &next)) {
+      while (sp_read_pp_token_from_list(pp->in_macro_exp, &next)) {
         if (! pp_tok_is_space(next) && ! pp_tok_is_newline(next)) {
           //printf("NEXT NONSPACE: '%s' (type %d)\n", sp_dump_pp_token(pp, next), next->type);
           *tok = *next;
@@ -533,7 +533,7 @@ static int peek_nonspace_token(struct sp_preprocessor *pp, struct sp_pp_token *t
         macro_exp = macro_exp->next;
     }
     
-    sp_set_pp_token_list_pos(pp->macro_exp, save_pos);
+    sp_set_pp_token_list_pos(pp->in_macro_exp, save_pos);
     if (found)
       return 0;
   }
@@ -544,17 +544,17 @@ static int peek_nonspace_token(struct sp_preprocessor *pp, struct sp_pp_token *t
 
 static bool next_token_from_macro_exp(struct sp_preprocessor *pp)
 {
-  if (pp->macro_exp) {
+  if (pp->in_macro_exp) {
     struct sp_pp_token *tok;
-    if (sp_read_pp_token_from_list(pp->macro_exp, &tok)) {
+    if (sp_read_pp_token_from_list(pp->in_macro_exp, &tok)) {
       pp->tok = *tok;
-      while (pp->macro_exp && ! sp_peek_pp_token_from_list(pp->macro_exp))
-        pp->macro_exp = pp->macro_exp->next;
+      while (pp->in_macro_exp && ! sp_peek_pp_token_from_list(pp->in_macro_exp))
+        pp->in_macro_exp = pp->in_macro_exp->next;
       //printf("* read from macro_exp: '%s'\n", sp_dump_pp_token(pp, tok));
       return true;
     }
-    while (pp->macro_exp && ! sp_peek_pp_token_from_list(pp->macro_exp))
-      pp->macro_exp = pp->macro_exp->next;
+    while (pp->in_macro_exp && ! sp_peek_pp_token_from_list(pp->in_macro_exp))
+      pp->in_macro_exp = pp->in_macro_exp->next;
     //printf("* macro_exp terminated\n");
   }
   return false;
@@ -628,8 +628,8 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
           } else {
             //printf("expanding object macro\n");
             sp_rewind_pp_token_list(&macro->body);
-            macro->body.next = pp->macro_exp;
-            pp->macro_exp = &macro->body;
+            macro->body.next = pp->in_macro_exp;
+            pp->in_macro_exp = &macro->body;
           }
           continue;
         }

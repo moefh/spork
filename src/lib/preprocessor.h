@@ -17,7 +17,9 @@ struct sp_ast;
 struct sp_preprocessor {
   struct sp_program *prog;
   struct sp_ast *ast;
+
   struct sp_input *in;
+  struct sp_pp_token_list *in_macro_exp;
 
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
@@ -25,8 +27,7 @@ struct sp_preprocessor {
   
   struct sp_buffer tmp_buf;
   struct sp_id_hashtable macros;
-  struct sp_pp_token_list *macro_exp;
-
+  
   bool reading_macro_args;
   bool at_newline;
   struct sp_pp_token tok;
