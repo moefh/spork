@@ -10,9 +10,21 @@
 
 struct sp_preprocessor;
 
+enum sp_predefined_macro_id {
+  PP_MACRO_NOT_PREDEFINED,
+  PP_MACRO_DATE,
+  PP_MACRO_TIME,
+  PP_MACRO_FILE,
+  PP_MACRO_LINE,
+  PP_MACRO_STDC,
+  PP_MACRO_STDC_VERSION,
+  PP_MACRO_STDC_HOSTED,
+  PP_MACRO_STDC_MB_MIGHT_NEQ_WC,
+};
+
 struct sp_macro_def {
+  enum sp_predefined_macro_id pre_id;
   sp_string_id name_id;
-  bool is_builtin_special;
   bool is_function;
   bool is_variadic;
   bool is_named_variadic;
@@ -30,7 +42,8 @@ struct sp_macro_args {
   struct sp_pp_token_list args[];
 };
 
-typedef int sp_pp_token_reader(struct sp_preprocessor *pp, struct sp_pp_token *tok, void *reader_data);
+int sp_add_predefined_macros(struct sp_preprocessor *pp);
+struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro);
 
 struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id name_id,
                                       bool is_function, bool is_variadic, bool is_named_variadic,

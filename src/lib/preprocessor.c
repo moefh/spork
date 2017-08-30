@@ -11,6 +11,7 @@
 #include "hashtable.h"
 #include "ast.h"
 #include "pp_token_list.h"
+#include "pp_macro.h"
 
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool)
 {
@@ -20,12 +21,15 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->ast = NULL;
   pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
+  pp->last_was_space = false;
   pp->reading_macro_args = false;
   pp->in_tokens = NULL;
   sp_init_idht(&pp->macros, pool);
   sp_init_string_table(&pp->token_strings, pool);
   sp_init_buffer(&pp->tmp_buf, pool);
   sp_init_mem_pool(&pp->macro_exp_pool);
+
+  sp_add_predefined_macros(pp);
 }
 
 void sp_destroy_preprocessor(struct sp_preprocessor *pp)
@@ -45,6 +49,7 @@ void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, str
   pp->loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
   pp->at_newline = true;
   pp->reading_macro_args = false;
+  pp->last_was_space = false;
 }
 
 #if 0

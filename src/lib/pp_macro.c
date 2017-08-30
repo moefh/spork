@@ -7,6 +7,23 @@
 #include "pp_token.h"
 #include "preprocessor.h"
 
+#define ADD_PREDEF_MACRO(name) { PP_MACRO_ ## name, "__" # name "__" }
+
+static const struct {
+  enum sp_predefined_macro_id id;
+  const char *name;
+} predefined_macros[] = {
+  ADD_PREDEF_MACRO(DATE),
+  ADD_PREDEF_MACRO(TIME),
+  ADD_PREDEF_MACRO(FILE),
+  ADD_PREDEF_MACRO(LINE),
+  ADD_PREDEF_MACRO(STDC),
+  ADD_PREDEF_MACRO(STDC_VERSION),
+  ADD_PREDEF_MACRO(STDC_HOSTED),
+  ADD_PREDEF_MACRO(STDC_MB_MIGHT_NEQ_WC),
+};
+
+
 static int validate_macro_params(struct sp_macro_def *macro, struct sp_preprocessor *pp)
 {
   int param_n = 0;
@@ -72,9 +89,9 @@ struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id n
   struct sp_macro_def *macro = sp_malloc(pp->pool, sizeof(struct sp_macro_def) + n_params*sizeof(sp_string_id));
   if (! macro)
     return NULL;
+  macro->pre_id = PP_MACRO_NOT_PREDEFINED;
   macro->name_id = name_id;
   macro->n_params = n_params;
-  macro->is_builtin_special = false;
   macro->enabled = true;
   macro->is_function = is_function;
   macro->is_variadic = is_variadic;
@@ -155,5 +172,67 @@ struct sp_pp_token_list *sp_get_macro_arg(struct sp_macro_def *macro, struct sp_
     if (param_name_id == macro->param_name_ids[i])
       return &args->args[i];
   }
+  return NULL;
+}
+
+static int add_predefined_macro(struct sp_preprocessor *pp, enum sp_predefined_macro_id pre_macro_id, const char *name)
+{
+  sp_string_id name_id = sp_add_string(&pp->token_strings, name);
+  if (name_id < 0)
+    return -1;
+
+  struct sp_pp_token_list list;
+  sp_init_pp_token_list(&list, pp->pool, 1);
+  struct sp_macro_def *macro = sp_new_macro_def(pp, name_id, false, false,
+                                                false, &list, &list);
+  if (! macro)
+    return -1;
+  macro->pre_id = pre_macro_id;
+  
+  if (sp_add_idht_entry(&pp->macros, name_id, macro) < 0)
+    return -1;
+  return 0;
+}
+
+int sp_add_predefined_macros(struct sp_preprocessor *pp)
+{
+  for (int i = 0; i < ARRAY_SIZE(predefined_macros); i++)
+    if (add_predefined_macro(pp, predefined_macros[i].id, predefined_macros[i].name) < 0)
+      return -1;
+  return 0;
+}
+
+struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro)
+{
+  struct sp_pp_token tok;
+  switch (macro->pre_id) {
+  case PP_MACRO_NOT_PREDEFINED:
+    tok.type = TOK_PP_SPACE;
+    break;
+    
+  case PP_MACRO_DATE:
+  case PP_MACRO_TIME:
+  case PP_MACRO_FILE:
+  case PP_MACRO_LINE:
+  case PP_MACRO_STDC:
+  case PP_MACRO_STDC_VERSION:
+  case PP_MACRO_STDC_HOSTED:
+  case PP_MACRO_STDC_MB_MIGHT_NEQ_WC:
+    tok.type = TOK_PP_NUMBER;
+    tok.data.str_id = sp_add_string(&pp->token_strings, "42");
+    if (tok.data.str_id < 0)
+      goto err_oom;
+    break;
+  }
+
+  struct sp_pp_token_list *list = sp_new_pp_token_list(&pp->macro_exp_pool, 1);
+  if (! list)
+    goto err_oom;
+  if (sp_append_pp_token(list, &tok) < 0)
+    goto err_oom;
+  return list;
+  
+ err_oom:
+  sp_set_pp_error(pp, "out of memory");
   return NULL;
 }

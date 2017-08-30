@@ -350,6 +350,8 @@ static bool next_token_from_buffer(struct sp_preprocessor *pp)
       pp->in_tokens = pp->in_tokens->next;
     //printf("* macro_exp terminated\n");
   }
+  
+  // TODO: clear pp->macro_exp_pool?
   return false;
 }
 
@@ -429,14 +431,17 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
         struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, ident_id);
         if (macro && macro->enabled && (! macro->is_function || pp_tok_is_punct(&next, '('))) {
           struct sp_pp_token_list *macro_exp;
-          if (macro->is_function) {
+          if (macro->pre_id != PP_MACRO_NOT_PREDEFINED) {
+            //printf("expanding predefined macro\n");
+            macro_exp = sp_expand_predefined_macro(pp, macro);
+          } else if (macro->is_function) {
             struct sp_macro_args *args = sp_new_macro_args(macro, &pp->macro_exp_pool);
             if (read_macro_args(pp, macro, args) < 0)
               return -1;
-            //printf("expanding function macro\n");
+            //printf("expanding function macro %d\n", macro->name_id);
             macro_exp = expand_macro(pp, macro, args);
           } else {
-            //printf("expanding object macro\n");
+            //printf("expanding object macro %d\n", macro->name_id);
             macro_exp = &macro->body;
           }
           if (! macro_exp)

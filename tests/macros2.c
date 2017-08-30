@@ -19,6 +19,8 @@ REC_B()
 R(S) 1)
 
 #define VAR(x,...) __VA_ARGS__
-#define VAR2(x...) __VA_ARGS__  // TODO: rename __VA_ARGS__ to x (the named variadic parameter)?
+//#define VAR2(x...) __VA_ARGS__  // TODO: rename __VA_ARGS__ to x (the named variadic parameter)?
+
+line: __LINE__
 
 VAR(1,2, )x
