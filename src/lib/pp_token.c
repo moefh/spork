@@ -223,23 +223,35 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
 {
   static char str[256];
 
-#define COLOR(x)   "\x1b[34m" x "\x1b[0m"
-  
+#if 1
+#define MARK_COLOR(x)    "\x1b[31m" x "\x1b[0m"
+#define OTHER_COLOR(x)   "\x1b[1;31m" x "\x1b[0m"
+#define IDENT_COLOR(x)   "\x1b[1;37m" x "\x1b[0m"
+#define PUNCT_COLOR(x)   "\x1b[1;36m" x "\x1b[0m"
+#define NUMBER_COLOR(x)  "\x1b[1;32m" x "\x1b[0m"
+#else
+#define MARK_COLOR(x)   x
+#define OTHER_COLOR(x)  x
+#define IDENT_COLOR(x)  x
+#define PUNCT_COLOR(x)  x
+#define NUMBER_COLOR(x) x
+#endif
+
   switch (tok->type) {
   case TOK_PP_EOF:
-    snprintf(str, sizeof(str), COLOR("<end-of-file>"));
+    snprintf(str, sizeof(str), MARK_COLOR("<end-of-file>"));
     return str;
 
   case TOK_PP_END_OF_ARG:
-    snprintf(str, sizeof(str), COLOR("<end-of-arg>"));
+    snprintf(str, sizeof(str), MARK_COLOR("<end-of-arg>"));
     return str;
 
   case TOK_PP_ENABLE_MACRO:
-    snprintf(str, sizeof(str), COLOR("<enable-macro '%s'>"), sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), MARK_COLOR("<enable-macro '%s'>"), sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_NEWLINE:
-    snprintf(str, sizeof(str), COLOR("<newline>"));
+    snprintf(str, sizeof(str), MARK_COLOR("<newline>"));
     return str;
 
   case TOK_PP_SPACE:
@@ -247,7 +259,7 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     return str;
 
   case TOK_PP_OTHER:
-    snprintf(str, sizeof(str), "%c", tok->data.other);
+    snprintf(str, sizeof(str), OTHER_COLOR("%c"), tok->data.other);
     return str;
 
   case TOK_PP_CHAR_CONST:  // TODO: how do we print this?
@@ -255,17 +267,20 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     return str;
     
   case TOK_PP_IDENTIFIER:
+    snprintf(str, sizeof(str), IDENT_COLOR("%s"), sp_get_pp_token_string(pp, tok));
+    return str;
+    
   case TOK_PP_HEADER_NAME:
   case TOK_PP_NUMBER:
-    snprintf(str, sizeof(str), "%s", sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), NUMBER_COLOR("%s"), sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_STRING:
-    snprintf(str, sizeof(str), "\"%s\"", sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), NUMBER_COLOR("\"%s\""), sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_PUNCT:
-    snprintf(str, sizeof(str), "%s", sp_get_punct_name(tok->data.punct_id));
+    snprintf(str, sizeof(str), PUNCT_COLOR("%s"), sp_get_punct_name(tok->data.punct_id));
     return str;
   }
   
