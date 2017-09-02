@@ -94,6 +94,15 @@ bool sp_read_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token 
   return true;
 }
 
+bool sp_read_nonblank_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_pp_token **ret)
+{
+  do {
+    if (! sp_read_pp_token_from_list(tl, ret))
+      return false;
+  } while (pp_tok_is_space(*ret) || pp_tok_is_newline(*ret));
+  return true;
+}
+
 struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl)
 {
   if (! tl->r_page)

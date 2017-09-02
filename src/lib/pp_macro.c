@@ -63,7 +63,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
     if (pp_tok_is_punct(tok, PUNCT_HASHES) && (pos == 0 || next == NULL))
       return sp_set_pp_error(pp, "## is not allowed at the start or end of macro body");
   
-    if (pp_tok_is_punct(tok, '#')) {
+    if (macro->is_function && pp_tok_is_punct(tok, '#')) {
       bool next_is_some_argument = false;
       if (next && pp_tok_is_identifier(next)) {
         for (int i = 0; i < macro->n_params; i++) {
@@ -74,7 +74,7 @@ static int validate_macro_body(struct sp_macro_def *macro, struct sp_preprocesso
         }
       }
       if (! next_is_some_argument)
-        return sp_set_pp_error(pp, "# must be followed by a parameter name");
+        return sp_set_pp_error(pp, "'#' must be followed by a parameter name, found '%s'", sp_dump_pp_token(pp, next));
     }
     pos++;
   }
