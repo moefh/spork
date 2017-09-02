@@ -466,19 +466,20 @@ static int peek_nonblank_token(struct sp_preprocessor *pp, struct sp_pp_token *t
 static bool next_token_from_buffer(struct sp_preprocessor *pp)
 {
   if (pp->in_tokens) {
-    struct sp_pp_token *tok;
-    if (sp_read_pp_token_from_list(pp->in_tokens, &tok)) {
-      pp->tok = *tok;
-      while (pp->in_tokens && ! sp_peek_pp_token_from_list(pp->in_tokens))
-        pp->in_tokens = pp->in_tokens->next;
-      //printf("* read from macro_exp: '%s'\n", sp_dump_pp_token(pp, tok));
-      return true;
-    }
     while (pp->in_tokens && ! sp_peek_pp_token_from_list(pp->in_tokens))
       pp->in_tokens = pp->in_tokens->next;
-    //printf("* macro_exp terminated\n");
     
-    //if (pp->macro_expansion_level == 0) sp_clear_mem_pool(&pp->macro_exp_pool);
+    if (pp->in_tokens) {
+      struct sp_pp_token *tok;
+      if (sp_read_pp_token_from_list(pp->in_tokens, &tok)) {
+        pp->tok = *tok;
+        //printf("* read from macro_exp: '%s'\n", sp_dump_pp_token(pp, tok));
+        return true;
+      }
+    }
+
+    if (pp->macro_expansion_level == 0)
+      sp_clear_mem_pool(&pp->macro_exp_pool);
   }
   
   return false;
