@@ -33,7 +33,8 @@ struct sp_preprocessor {
   struct sp_src_loc loc;
 
   // phase 4:
-  bool reading_macro_args;
+  int macro_args_reading_level;
+  int macro_expansion_level;
   bool last_was_space;
   bool at_newline;
 };

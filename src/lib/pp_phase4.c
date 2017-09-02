@@ -18,6 +18,7 @@
 
 #define set_error sp_set_pp_error
 static void add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
+static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 
 #define NEXT_TOKEN()        do { if (sp_next_pp_ph3_token(pp, false) < 0) return -1; } while (0)
 #define NEXT_HEADER_TOKEN() do { if (sp_next_pp_ph3_token(pp, true ) < 0) return -1; } while (0)
@@ -154,12 +155,12 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   if (! args)
     goto err_oom;
   
-  pp->reading_macro_args = true;
+  pp->macro_args_reading_level++;
 
   //printf("READING MACRO ARGS FOR '%s'\n", sp_get_macro_name(macro, pp));
 
   do {
-    if (sp_next_pp_ph4_token(pp) < 0)
+    if (next_processed_token(pp, false) < 0)
       return NULL;
   } while (IS_SPACE());
   if (! IS_PUNCT('(')) {
@@ -175,7 +176,7 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
     
     // skip initial spaces and newlines
     do {
-      if (sp_next_pp_ph4_token(pp) < 0)
+      if (next_processed_token(pp, false) < 0)
         goto err;
       if (! arg_start)
         break;
@@ -239,7 +240,7 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
       goto err_oom;
   }
   
-  pp->reading_macro_args = false;
+  pp->macro_args_reading_level--;
   return args;
 
  err_oom:
@@ -260,7 +261,7 @@ static struct sp_pp_token_list *expand_arg(struct sp_preprocessor *pp, struct sp
   //printf("ARG NEXT: %p\n", (void*) arg->next);
   add_pp_token_list_to_input(pp, arg);
   while (true) {
-    if (sp_next_pp_ph4_token(pp) < 0)
+    if (next_processed_token(pp, true) < 0)
       return NULL;
     //printf("[arg] %s\n", sp_dump_pp_token(pp, &pp->tok));
     if (IS_END_OF_ARG())
@@ -476,19 +477,20 @@ static bool next_token_from_buffer(struct sp_preprocessor *pp)
     while (pp->in_tokens && ! sp_peek_pp_token_from_list(pp->in_tokens))
       pp->in_tokens = pp->in_tokens->next;
     //printf("* macro_exp terminated\n");
+    
+    //if (pp->macro_expansion_level == 0) sp_clear_mem_pool(&pp->macro_exp_pool);
   }
   
-  // TODO: clear pp->macro_exp_pool?
   return false;
 }
 
-int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
+static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
 {
   while (true) {
     if (! next_token_from_buffer(pp))
       NEXT_TOKEN();
 
-    //if (pp->reading_macro_args) printf("macro arg -> '%s'\n", sp_dump_pp_token(pp, &pp->tok));
+    //if (pp->macro_args_reading_level) printf("macro arg -> '%s'\n", sp_dump_pp_token(pp, &pp->tok));
 
     if (IS_ENABLE_MACRO()) {
       struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, sp_get_pp_token_string_id(&pp->tok));
@@ -499,7 +501,7 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
     }
     
     if (IS_NEWLINE()) {
-      if (pp->reading_macro_args) {
+      if (pp->macro_args_reading_level) {
         if (pp->last_was_space)
           continue;
         pp->tok.type = TOK_PP_SPACE;
@@ -517,7 +519,7 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
     }
 
     if (IS_EOF()) {
-      if (pp->reading_macro_args)
+      if (pp->macro_args_reading_level)
         return set_error(pp, "unterminated macro argument list");
       if (! pp->in->next)
         return 0;
@@ -530,10 +532,10 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
     }
     
     if (IS_PUNCT('#')) {
-      //printf("!!!PUNCT!!! %d\n", pp->reading_macro_args);
+      //printf("!!!PUNCT!!! %d\n", pp->macro_args_reading_level);
       if (! pp->at_newline)
         return 0;
-      if (pp->reading_macro_args)
+      if (pp->macro_args_reading_level)
         return set_error(pp, "preprocessing directive in macro arguments");
       if (sp_process_pp_directive(pp) < 0)
         return -1;
@@ -542,7 +544,7 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
       continue;
     }
 
-    if (! pp->reading_macro_args && pp_tok_is_identifier(&pp->tok) && ! pp->tok.macro_dead) {
+    if (expand_macros && pp_tok_is_identifier(&pp->tok) && ! pp->tok.macro_dead) {
       struct sp_pp_token ident = pp->tok;
       sp_string_id ident_id = sp_get_pp_token_string_id(&ident);
 
@@ -562,6 +564,7 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
             pp->tok.macro_dead = true;
           } else if (! macro->is_function || pp_tok_is_punct(&next, '(')) {
             struct sp_pp_token_list *macro_exp;
+            pp->macro_expansion_level++;
             if (macro->pre_id != PP_MACRO_NOT_PREDEFINED) {
               //printf("expanding predefined macro\n");
               macro_exp = sp_expand_predefined_macro(pp, macro);
@@ -578,6 +581,7 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
             if (! macro_exp)
               return -1;
             add_pp_token_list_to_input(pp, macro_exp);
+            pp->macro_expansion_level--;
             continue;
           }
         }
@@ -588,4 +592,9 @@ int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
     pp->at_newline = false;
     return 0;
   }
+}
+
+int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
+{
+  return next_processed_token(pp, true);
 }

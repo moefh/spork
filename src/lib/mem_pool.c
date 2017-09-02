@@ -46,6 +46,7 @@ void sp_clear_mem_pool(struct sp_mem_pool *p)
   if (! p->page_list)
     return;
 
+#if 1
   struct sp_mem_page *page = p->page_list->next;
   while (page != NULL) {
     struct sp_mem_page *next = page->next;
@@ -55,6 +56,10 @@ void sp_clear_mem_pool(struct sp_mem_pool *p)
   p->page_list->next = NULL;
   p->page_list->free = (char *)(p->page_list) + ALIGN(sizeof(struct sp_mem_page));
   p->page_list->free_size = p->page_size - ALIGN(sizeof(struct sp_mem_page));
+#else
+  sp_destroy_mem_pool(p);
+  sp_init_mem_pool(p);
+#endif
 }
 
 void *sp_malloc(struct sp_mem_pool *p, size_t size)
