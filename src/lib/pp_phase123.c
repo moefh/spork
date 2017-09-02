@@ -419,6 +419,7 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
 
   // TODO: set location based on 'pos'
   tok->loc = sp_make_src_loc(sp_get_input_file_id(pp->in),0,0);
+  tok->macro_dead = false;
 
   // EOF
   if (type == TOK_PP_EOF) {

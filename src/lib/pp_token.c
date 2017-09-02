@@ -153,6 +153,7 @@ bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2)
   case TOK_PP_EOF:
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
+  case TOK_PP_END_OF_ARG:
     return true;
 
   case TOK_PP_OTHER:
@@ -221,18 +222,24 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
 const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
 {
   static char str[256];
+
+#define COLOR(x)   "\x1b[34m" x "\x1b[0m"
   
   switch (tok->type) {
   case TOK_PP_EOF:
-    snprintf(str, sizeof(str), "<end-of-file>");
+    snprintf(str, sizeof(str), COLOR("<end-of-file>"));
+    return str;
+
+  case TOK_PP_END_OF_ARG:
+    snprintf(str, sizeof(str), COLOR("<end-of-arg>"));
     return str;
 
   case TOK_PP_ENABLE_MACRO:
-    snprintf(str, sizeof(str), "<enable-macro '%s'>", sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), COLOR("<enable-macro '%s'>"), sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_NEWLINE:
-    snprintf(str, sizeof(str), "<newline>");
+    snprintf(str, sizeof(str), COLOR("<newline>"));
     return str;
 
   case TOK_PP_SPACE:
