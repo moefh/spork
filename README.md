@@ -4,11 +4,16 @@ A toy interpreter for the C language in the very early stages.
 
 ## Progress
 
-- keywords
-- comments
-- `#include "file"` and `#include <file>`
-- definition of macros
-- expansion of non-function macros
+- Translation phases 1 to 4 (most of preprocessing) are mostly done.
+
+- Phases 5 and 6 should be easy: process escape sequences in character
+constants and string literals and join adjacent strings.
+
+- First bit of phase 7 is also east: converting preprocessing tokens to tokens.
+
+- The rest of phase 7 is where the fun begins: parsing and compilation.
+
+- Translation phase 8 is linking.
 
 ## Name
 
