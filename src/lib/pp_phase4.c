@@ -487,7 +487,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   
   // paste and stringify
   struct sp_pp_token_list *out;
-  if (macro->is_function && has_hash) {
+  if (has_hash) {
     out = sp_new_pp_token_list(&pp->macro_exp_pool, sp_pp_token_list_size(macro_exp));
     t = sp_rewind_pp_token_list(macro_exp);
     while (sp_read_pp_token_from_list(macro_exp, &t)) {
@@ -520,7 +520,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
       }
 
       // stringify
-      if (pp_tok_is_punct(t, '#')) {
+      if (macro->is_function && pp_tok_is_punct(t, '#')) {
         struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(macro_exp);
         if (pp_tok_is_identifier(next) && sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(next))) {
           if (! sp_read_nonblank_pp_token_from_list(macro_exp, &next)) {

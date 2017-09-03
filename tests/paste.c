@@ -14,6 +14,10 @@ paste(,b)
 paste(L,'\a')
 paste(L,"a")
 
+#define MAKE_WIDE_A L ## "a"
+L ## "a"      // this is NOT pasted
+MAKE_WIDE_A   // this is pasted into L"a"
+
 //paste("", paste(\, ""))
 
 #define Y(x) x
