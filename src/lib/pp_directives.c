@@ -9,6 +9,7 @@
 #include "preprocessor.h"
 #include "ast.h"
 #include "pp_token.h"
+#include "punct.h"
 
 enum pp_directive_type {
   PP_DIR_if,
@@ -85,6 +86,7 @@ static int process_include(struct sp_preprocessor *pp)
   if (! IS_NEWLINE())
     return set_error(pp, "unexpected input after include file name: '%s'", sp_dump_pp_token(pp, &pp->tok));
 
+#if 1
   // remove surrounding <> or ""
   char filename[256];
   size_t include_filename_len = strlen(include_file);
@@ -106,7 +108,8 @@ static int process_include(struct sp_preprocessor *pp)
     return set_error(pp, "can't open '%s'", filename);
   in->next = pp->in;
   pp->in = in;
-
+#endif
+  
   return 0;
 }
 

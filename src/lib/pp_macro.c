@@ -6,6 +6,7 @@
 #include "pp_macro.h"
 #include "pp_token.h"
 #include "preprocessor.h"
+#include "punct.h"
 
 #define ADD_PREDEF_MACRO(name) { PP_MACRO_ ## name, "__" # name "__" }
 

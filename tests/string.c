@@ -1,4 +1,4 @@
 
 "abc"
 "a\bc"
-L"abc"
+(L"abc")

@@ -69,7 +69,7 @@ const char *sp_get_punct_name(int punct_id)
   return NULL;
 }
 
-int sp_get_punct_id(char *name)
+int sp_get_punct_id(const char *name)
 {
   for (int i = 0; i < ARRAY_SIZE(puncts); i++)
     if (strcmp(puncts[i].name, name) == 0)

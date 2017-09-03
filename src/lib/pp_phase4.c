@@ -1,10 +1,7 @@
-/* pp_phase123.c
+/* pp_phase4.c
  *
- * Translation phase 4a: execute preprocessing directives.
+ * Translation phase 4: execute preprocessing directives and expand macros.
  */
-
-#define _POSIX_C_SOURCE 199309L
-#include <time.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +12,7 @@
 #include "preprocessor.h"
 #include "ast.h"
 #include "pp_token.h"
+#include "punct.h"
 
 #define set_error sp_set_pp_error
 static void add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
@@ -232,9 +230,6 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   int paren_level = 0;
   bool arg_start = true;
   while (true) {
-    //static const struct timespec t = ((struct timespec) { .tv_sec = 0, .tv_nsec = 1 });
-    //nanosleep(&t, NULL);
-    
     // skip initial spaces and newlines
     do {
       if (next_processed_token(pp, false) < 0)

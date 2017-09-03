@@ -13,6 +13,7 @@
 #include "pp_macro.h"
 
 struct sp_ast;
+struct sp_token;
 
 struct sp_preprocessor {
   struct sp_program *prog;
@@ -37,6 +38,12 @@ struct sp_preprocessor {
   int macro_expansion_level;
   bool last_was_space;
   bool at_newline;
+
+  // phase 6:
+  bool init_ph6;
+  struct sp_pp_token tok_ph6;
+  struct sp_pp_token next_ph6;
+  struct sp_buffer tmp_str_buf;
 };
 
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
@@ -54,5 +61,6 @@ int sp_process_pp_directive(struct sp_preprocessor *pp);
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp);
 
 int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
+int sp_next_token(struct sp_preprocessor *pp, struct sp_token *tok);
 
 #endif /* PREPROCESSOR_H_FILE */

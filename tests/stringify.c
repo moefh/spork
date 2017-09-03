@@ -6,20 +6,20 @@
 // TODO: should remove trailing spaces from args
 STR(  hello \n /* x */
 //x
- world!  )
+ world!  );
 
-STR(#)
-STR("hello, world!\n")
-STR(1.2.3)
+STR(#);
+STR("hello, world!\n");
+STR(1.2.3);
 STR(@
-hashtag!)
+hashtag!);
 
-STR('\n')
-STR('\"')
-STR('"')
+STR('\n');
+STR('\"');
+STR('"');
 
 
-STRVAR()
-STRVAR(a)
-STRVAR(a,b)
-STRVAR(a, b)
+STRVAR();
+STRVAR(a);
+STRVAR(a,b);
+STRVAR(a, b);

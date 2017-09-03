@@ -8,6 +8,8 @@
 #include "buffer.h"
 #include "ast.h"
 #include "preprocessor.h"
+#include "token.h"
+#include "punct.h"
 
 struct sp_program *sp_new_program(void)
 {
@@ -41,7 +43,7 @@ int sp_set_error(struct sp_program *prog, const char *fmt, ...)
 
 void test_new_input(struct sp_input *in);
 
-int sp_compile_program(struct sp_program *prog, const char *filename)
+int sp_preprocess_file(struct sp_program *prog, const char *filename)
 {
   struct sp_input *file = NULL;
 
@@ -88,6 +90,61 @@ int sp_compile_program(struct sp_program *prog, const char *filename)
     sp_dump_macros(&pp);
     printf("===================================\n");
   }
+
+  sp_destroy_preprocessor(&pp);
+  sp_destroy_mem_pool(&pool);
+  return 0;
+      
+ err:
+  if (file)
+    sp_free_input(file);
+  sp_destroy_preprocessor(&pp);
+  sp_destroy_mem_pool(&pool);
+  return -1;
+}
+
+int sp_compile_file(struct sp_program *prog, const char *filename)
+{
+  struct sp_input *file = NULL;
+
+  struct sp_mem_pool pool;
+  sp_init_mem_pool(&pool);
+
+  struct sp_preprocessor pp;
+  sp_init_preprocessor(&pp, prog, &pool);
+
+  struct sp_ast *ast = sp_new_ast(&pool, &prog->src_file_names);
+  if (! ast) {
+    sp_set_error(prog, "out of memory");
+    goto err;
+  }
+
+  sp_string_id file_id = sp_add_ast_file_name(ast, filename);
+  if (file_id < 0) {
+    sp_set_error(prog, "out of memory");
+    goto err;
+  }
+  
+  file = sp_new_input_from_file(filename, (uint16_t) file_id, NULL);
+  if (! file) {
+    sp_set_error(prog, "can't open '%s'", filename);
+    goto err;
+  }
+
+  sp_set_preprocessor_io(&pp, file, ast);
+  file = NULL;
+
+  printf("===================================\n");
+  struct sp_token tok;
+  do {
+    if (sp_next_token(&pp, &tok) < 0)
+      goto err;
+    printf("%s ", sp_dump_token(&tok, &pp.token_strings));
+    if (tok_is_punct(&tok, ';') || tok_is_punct(&tok, '{') || tok_is_punct(&tok, '}'))
+      printf("\n");
+  } while (! tok_is_eof(&tok));
+  printf("\n");
+  printf("===================================\n");
 
   sp_destroy_preprocessor(&pp);
   sp_destroy_mem_pool(&pool);

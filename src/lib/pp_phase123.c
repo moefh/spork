@@ -12,6 +12,7 @@
 #include "preprocessor.h"
 #include "input.h"
 #include "pp_token.h"
+#include "punct.h"
 
 #define ERR_ERROR                    -1
 #define ERR_OUT_OF_MEMORY            -2

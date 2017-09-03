@@ -29,7 +29,7 @@ enum {
   PUNCT_HASHES,
 };
 
-int sp_get_punct_id(char *name);
+int sp_get_punct_id(const char *name);
 const char *sp_get_punct_name(int punct_id);
 
 #endif /* PUNCT_H_FILE */

@@ -21,6 +21,7 @@ void sp_free_program(struct sp_program *prog);
 
 int sp_set_error(struct sp_program *prog, const char *fmt, ...) SP_PRINTF_FORMAT(2,3);
 const char *sp_get_error(struct sp_program *prog);
-int sp_compile_program(struct sp_program *prog, const char *filename);
+int sp_compile_file(struct sp_program *prog, const char *filename);
+int sp_preprocess_file(struct sp_program *prog, const char *filename);
 
 #endif /* SPORK_H_FILE */

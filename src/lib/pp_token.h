@@ -20,68 +20,6 @@ enum sp_pp_token_type {
   TOK_PP_OTHER,
 };
 
-enum {
-  PUNCT_ARROW = 256,
-  PUNCT_PLUSPLUS,
-  PUNCT_MINUSMINUS,
-  PUNCT_LSHIFT,
-  PUNCT_RSHIFT,
-  PUNCT_LEQ,
-  PUNCT_GEQ,
-  PUNCT_EQ,
-  PUNCT_NEQ,
-  PUNCT_AND,
-  PUNCT_OR,
-  PUNCT_ELLIPSIS,
-  PUNCT_MULEQ,
-  PUNCT_DIVEQ,
-  PUNCT_MODEQ,
-  PUNCT_PLUSEQ,
-  PUNCT_MINUSEQ,
-  PUNCT_LSHIFTEQ,
-  PUNCT_RSHIFTEQ,
-  PUNCT_ANDEQ,
-  PUNCT_XOREQ,
-  PUNCT_OREQ,
-  PUNCT_HASHES,
-};
-
-enum sp_keyword_type {
-  KW_auto,
-  KW_break,
-  KW_case,
-  KW_char,
-  KW_const,
-  KW_continue,
-  KW_default,
-  KW_do,
-  KW_double,
-  KW_else,
-  KW_enum,
-  KW_extern,
-  KW_float,
-  KW_for,
-  KW_goto,
-  KW_if,
-  KW_inline,
-  KW_int,
-  KW_long,
-  KW_register,
-  KW_restrict,
-  KW_return,
-  KW_short,
-  KW_signed,
-  KW_sizeof,
-  KW_static,
-  KW_struct,
-  KW_switch,
-  KW_typedef,
-  KW_unsigned,
-  KW_void,
-  KW_volatile,
-  KW_while,
-};
-
 struct sp_pp_token {
   enum sp_pp_token_type type;
   struct sp_src_loc loc;
@@ -102,9 +40,6 @@ const char *sp_get_pp_token_string(struct sp_preprocessor *pp, struct sp_pp_toke
 const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
 bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2);
 
-int sp_get_punct_id(const char *name);
-const char *sp_get_punct_name(int punct_id);
-
 #define pp_tok_is_eof(tok)          ((tok)->type == TOK_PP_EOF)
 #define pp_tok_is_end_of_arg(tok)   ((tok)->type == TOK_PP_END_OF_ARG)
 #define pp_tok_is_paste_marker(tok) ((tok)->type == TOK_PP_PASTE_MARKER)
@@ -113,7 +48,8 @@ const char *sp_get_punct_name(int punct_id);
 #define pp_tok_is_space(tok)        ((tok)->type == TOK_PP_SPACE)
 #define pp_tok_is_number(tok)       ((tok)->type == TOK_PP_NUMBER)
 #define pp_tok_is_string(tok)       ((tok)->type == TOK_PP_STRING)
-#define pp_tok_is_punct(tok, p)     ((tok)->type == TOK_PP_PUNCT && (tok)->data.punct_id == (p))
 #define pp_tok_is_identifier(tok)   ((tok)->type == TOK_PP_IDENTIFIER)
+#define pp_tok_is_any_punct(tok)    ((tok)->type == TOK_PP_PUNCT)
+#define pp_tok_is_punct(tok, p)     ((tok)->type == TOK_PP_PUNCT && (tok)->data.punct_id == (p))
 
 #endif /* PP_TOKEN_H_FILE */

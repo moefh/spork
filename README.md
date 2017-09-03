@@ -9,7 +9,7 @@ A toy interpreter for the C language in the very early stages.
 - Phases 5 and 6 should be easy: process escape sequences in character
 constants and string literals and join adjacent strings.
 
-- First bit of phase 7 is also east: converting preprocessing tokens to tokens.
+- First bit of phase 7 is also easy: converting preprocessing tokens to tokens.
 
 - The rest of phase 7 is where the fun begins: parsing and compilation.
 
