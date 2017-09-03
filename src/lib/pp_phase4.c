@@ -51,12 +51,6 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
     *str++ = (char) tok->data.other;
     break;
 
-  case TOK_PP_CHAR_CONST:
-    if (str_size < 2) goto err;
-    // TODO: how do we do this?
-    *str++ = (char) tok->data.other;
-    break;
-    
   case TOK_PP_IDENTIFIER:
   case TOK_PP_HEADER_NAME:
   case TOK_PP_NUMBER:
@@ -66,6 +60,22 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
       if (str_size+1 < src_len) goto err;
       memcpy(str, src, src_len);
       str += src_len;
+    }
+    break;
+    
+  case TOK_PP_CHAR_CONST:
+    {
+      if (str_size < 1) goto err;
+      const char *src = sp_get_pp_token_string(pp, tok);
+      for (const char *s = src; *s != '\0'; s++) {
+        if (*s == '\\' || *s == '"') {
+          if (str_size < 2) goto err;
+          *str++ = '\\';
+        }
+        if (str_size < 2) goto err;
+        *str++ = *s;
+      }
+      if (str_size < 1) goto err;
     }
     break;
     

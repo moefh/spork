@@ -265,10 +265,6 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     snprintf(str, sizeof(str), OTHER_COLOR("%c"), tok->data.other);
     return str;
 
-  case TOK_PP_CHAR_CONST:  // TODO: how do we print this?
-    snprintf(str, sizeof(str), "<char const>");
-    return str;
-    
   case TOK_PP_IDENTIFIER:
     snprintf(str, sizeof(str), IDENT_COLOR("%s"), sp_get_pp_token_string(pp, tok));
     return str;
@@ -278,6 +274,10 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     snprintf(str, sizeof(str), NUMBER_COLOR("%s"), sp_get_pp_token_string(pp, tok));
     return str;
 
+  case TOK_PP_CHAR_CONST:
+    snprintf(str, sizeof(str), NUMBER_COLOR("%s"), sp_get_pp_token_string(pp, tok));
+    return str;
+    
   case TOK_PP_STRING:
     snprintf(str, sizeof(str), NUMBER_COLOR("%s"), sp_get_pp_token_string(pp, tok));
     return str;

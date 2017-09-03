@@ -11,6 +11,8 @@ paste(,)
 paste(a,)
 paste(,b)
 
+paste('\n','a')
+
 //paste("", paste(\, ""))
 
 #define Y(x) x

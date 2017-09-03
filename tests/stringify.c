@@ -14,6 +14,10 @@ STR(1.2.3)
 STR(@
 hashtag!)
 
+STR('\n')
+STR('\"')
+STR('"')
+
 
 STRVAR()
 STRVAR(a)

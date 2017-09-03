@@ -13,18 +13,22 @@
 #include "input.h"
 #include "pp_token.h"
 
-#define ERR_ERROR                -1
-#define ERR_OUT_OF_MEMORY        -2
-#define ERR_UNTERMINATED_HEADER  -3
-#define ERR_UNTERMINATED_STRING  -4
-#define ERR_EOF_IN_COMMENT       -5
+#define ERR_ERROR                    -1
+#define ERR_OUT_OF_MEMORY            -2
+#define ERR_UNTERMINATED_HEADER      -3
+#define ERR_UNTERMINATED_STRING      -4
+#define ERR_UNTERMINATED_CHAR_CONST  -5
+#define ERR_UNTERMINATED_COMMENT     -6
+#define ERR_INVALID_ESCAPE_SEQUENCE  -7
 
 #define set_error sp_set_pp_error
 
-#define IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
-#define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
-#define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
-#define IS_ALNUM(c) (IS_ALPHA(c) || IS_DIGIT(c))
+#define IS_SPACE(c)      ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
+#define IS_ALPHA(c)      (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
+#define IS_DIGIT(c)      ((c) >= '0' && (c) <= '9')
+#define IS_ALNUM(c)      (IS_ALPHA(c) || IS_DIGIT(c))
+#define IS_OCT_DIGIT(c)  ((c) >= '0' && (c) <= '7')
+#define IS_HEX_DIGIT(c)  (((c) >= '0' && (c) <= '9') || ((c) >= 'A' && (c) <= 'F') || ((c) >= 'a' && (c) <= 'f'))
 
 #define CUR   ((in->pos   < in->size) ? (int)in->data[in->pos  ] : -1)
 #define NEXT  ((in->pos+1 < in->size) ? (int)in->data[in->pos+1] : -1)
@@ -95,7 +99,7 @@ static bool skip_comments(struct sp_input *in, int *err)
       ADVANCE();
       while (true) {
         if (CUR < 0) {
-          *err = ERR_EOF_IN_COMMENT;
+          *err = ERR_UNTERMINATED_COMMENT;
           return false;
         }
         if (CUR == '*') {
@@ -179,11 +183,14 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
           return ERR_UNTERMINATED_STRING;
         if (CUR == '\\')
           skip_bs_newline(in);
+        
         if (sp_buf_add_byte(buf, CUR) < 0)
           return ERR_OUT_OF_MEMORY;
         ADVANCE();
         if (CUR == '\\')
           skip_bs_newline(in);
+        if (CUR < 0)
+          return ERR_UNTERMINATED_STRING;
       }
     }
     if (CUR == '\n' || CUR < 0)
@@ -200,6 +207,107 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
   if (sp_buf_add_byte(buf, '\0') < 0)
     return ERR_OUT_OF_MEMORY;
   return TOK_PP_STRING;
+}
+
+static int read_chars_in_set(struct sp_input *in, struct sp_buffer *buf, const char *set, int min, int max)
+{
+  int n = 0;
+  while (true) {
+    if (CUR == '\\' && ! skip_bs_newline(in))
+      break;
+    if (CUR < 0)
+      break;
+    //printf("testing '%c' against set '%s'\n", CUR, set);
+    if (CUR != '\0' && strchr(set, CUR) != NULL) {
+      if (sp_buf_add_byte(buf, CUR) < 0)
+        return ERR_OUT_OF_MEMORY;
+      ADVANCE();
+      if (++n >= max)
+        break;
+      continue;
+    }
+    //printf("test FAILED!\n");
+    break;
+  }
+
+  if (n >= min && n <= max)
+    return 0;
+  //printf("expected %d-%d chars in set '%s', found %d\n", min, max, set, n);
+  return ERR_INVALID_ESCAPE_SEQUENCE;
+}
+
+static int read_char_const(struct sp_input *in, struct sp_buffer *buf)
+{
+  buf->size = 0;
+  if (sp_buf_add_byte(buf, CUR) < 0)
+    return ERR_OUT_OF_MEMORY;
+  while (true) {
+    ADVANCE();
+    if (CUR == '\\') {
+      if (! skip_bs_newline(in)) {
+        // actual backspace
+        if (sp_buf_add_byte(buf, CUR) < 0)
+          return ERR_OUT_OF_MEMORY;
+        ADVANCE();
+        if (CUR < 0)
+          return ERR_UNTERMINATED_STRING;
+        if (CUR == '\\')
+          skip_bs_newline(in);
+        if (CUR != '\0' && strchr("'\"?\\abfnrtv", CUR) != NULL) {
+          // simple
+          if (sp_buf_add_byte(buf, CUR) < 0)
+            return ERR_OUT_OF_MEMORY;
+          ADVANCE();
+        } else if (IS_OCT_DIGIT(CUR)) {
+          // oct
+          if (sp_buf_add_byte(buf, CUR) < 0)
+            return ERR_OUT_OF_MEMORY;
+          ADVANCE();
+          int err = read_chars_in_set(in, buf, "01234567", 0, 2);
+          if (err < 0)
+            return err;
+        } else if (CUR == 'x') {
+          // hex
+          if (sp_buf_add_byte(buf, CUR) < 0)
+            return ERR_OUT_OF_MEMORY;
+          ADVANCE();
+          int err = read_chars_in_set(in, buf, "0123456789abcdefABCDEF", 1, 2);
+          if (err < 0)
+            return err;
+        } else if (CUR == 'u') {
+          // \uXXXX
+          if (sp_buf_add_byte(buf, CUR) < 0)
+            return ERR_OUT_OF_MEMORY;
+          ADVANCE();
+          int err = read_chars_in_set(in, buf, "0123456789abcdefABCDEF", 4, 4);
+          if (err < 0)
+            return err;
+        } else if (CUR == 'U') {
+          // \UXXXXXXXX
+          if (sp_buf_add_byte(buf, CUR) < 0)
+            return ERR_OUT_OF_MEMORY;
+          ADVANCE();
+          int err = read_chars_in_set(in, buf, "0123456789abcdefABCDEF", 8, 8);
+          if (err < 0)
+            return err;
+        } else
+          return ERR_INVALID_ESCAPE_SEQUENCE;
+      }
+    }
+    if (CUR == '\n' || CUR < 0)
+      return ERR_UNTERMINATED_STRING;
+    if (CUR == '\'') {
+      if (sp_buf_add_byte(buf, CUR) < 0)
+        return ERR_OUT_OF_MEMORY;
+      ADVANCE();
+      break;
+    }
+    if (sp_buf_add_byte(buf, CUR) < 0)
+      return ERR_OUT_OF_MEMORY;
+  }
+  if (sp_buf_add_byte(buf, '\0') < 0)
+    return ERR_OUT_OF_MEMORY;
+  return TOK_PP_CHAR_CONST;
 }
 
 static int read_number(struct sp_input *in, struct sp_buffer *buf)
@@ -358,7 +466,11 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
     return read_ident(in, buf);
   }
 
-  /* TODO: character constant */
+  /* character constant */
+  if (CUR == '\'') {
+    *pos = CUR_POS;
+    return read_char_const(in, buf);
+  }
   
   /* punctuation */
   buf->size = 0;
@@ -414,11 +526,13 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
   // error
   if (type < 0) {
     switch (type) {
-    case ERR_ERROR:               return set_error(pp, "internal error");
-    case ERR_OUT_OF_MEMORY:       return set_error(pp, "out of memory");
-    case ERR_UNTERMINATED_STRING: return set_error(pp, "unterminated string");
-    case ERR_UNTERMINATED_HEADER: return set_error(pp, "unterminated header name");
-    case ERR_EOF_IN_COMMENT:      return set_error(pp, "unterminated comment");
+    case ERR_ERROR:                    return set_error(pp, "internal error");
+    case ERR_OUT_OF_MEMORY:            return set_error(pp, "out of memory");
+    case ERR_UNTERMINATED_STRING:      return set_error(pp, "unterminated string");
+    case ERR_UNTERMINATED_HEADER:      return set_error(pp, "unterminated header name");
+    case ERR_UNTERMINATED_CHAR_CONST:  return set_error(pp, "unterminated character constant");
+    case ERR_UNTERMINATED_COMMENT:     return set_error(pp, "unterminated comment");
+    case ERR_INVALID_ESCAPE_SEQUENCE:  return set_error(pp, "invalid escape sequence");
     }
     return set_error(pp, "internal error");
   }
