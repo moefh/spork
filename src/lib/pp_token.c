@@ -73,7 +73,7 @@ const char *sp_get_punct_name(int punct_id)
   return NULL;
 }
 
-int sp_get_punct_id(char *name)
+int sp_get_punct_id(const char *name)
 {
   for (int i = 0; i < ARRAY_SIZE(puncts); i++)
     if (strcmp(puncts[i].name, name) == 0)
@@ -187,7 +187,6 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
     {
       const uint8_t *in = (const uint8_t *) sp_get_token_string(ast, tok);
       char *out = str;
-      *out++ = '\"';
       while (*in != '\0') {
         if (*in == '\n') {
           if (out - str + 4 >= (int)sizeof(str)) break;
@@ -213,7 +212,6 @@ const char *sp_dump_token(struct sp_ast *ast, struct sp_token *tok)
         }
         in++;
       }
-      *out++ = '\"';
       *out++ = '\0';
     }
     return str;
@@ -281,7 +279,7 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     return str;
 
   case TOK_PP_STRING:
-    snprintf(str, sizeof(str), NUMBER_COLOR("\"%s\""), sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), NUMBER_COLOR("%s"), sp_get_pp_token_string(pp, tok));
     return str;
 
   case TOK_PP_PUNCT:

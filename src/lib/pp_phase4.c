@@ -71,10 +71,7 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
     
   case TOK_PP_STRING:
     {
-      if (str_size < 3) goto err;
-      str_size -= 2;
-      *str++ = '\\';
-      *str++ = '\"';
+      if (str_size < 1) goto err;
       const char *src = sp_get_pp_token_string(pp, tok);
       for (const char *s = src; *s != '\0'; s++) {
         if (*s == '\\' || *s == '"') {
@@ -84,9 +81,7 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
         if (str_size < 2) goto err;
         *str++ = *s;
       }
-      if (str_size < 3) goto err;
-      *str++ = '\\';
-      *str++ = '\"';
+      if (str_size < 1) goto err;
     }
     break;
     
@@ -131,19 +126,17 @@ static int paste_tokens(struct sp_preprocessor *pp, struct sp_pp_token *tok1, st
   if (token_to_string(pp, tok2, str + str_len, sizeof(str) - str_len) < 0)
     return -1;
 
-  // TODO: convert 'str' to right type of token
-
-  ret->type = TOK_PP_IDENTIFIER;
-  ret->data.str_id = sp_add_string(&pp->token_strings, str);
-  if (ret->data.str_id < 0)
-    return set_error(pp, "out of memory");
-  return 0;
+  return sp_string_to_pp_token(pp, str, ret);
 }
 
 static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *list, struct sp_pp_token *ret)
 {
   char str[4096];  // enough according to "5.2.4.1 Translation limits"
   char *cur = str;
+  
+  if (str + sizeof(str) <= cur+1)
+    goto err;
+  *cur++ = '"';
 
   bool last_was_space = false;
   struct sp_pp_token *tok = sp_rewind_pp_token_list(list);
@@ -178,6 +171,9 @@ static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *l
       break;
     }
   }
+  if (str + sizeof(str) <= cur+1)
+    goto err;
+  *cur++ = '"';
   if (str + sizeof(str) <= cur+1)
     goto err;
   *cur = '\0';

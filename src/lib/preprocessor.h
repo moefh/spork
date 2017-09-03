@@ -48,6 +48,7 @@ void sp_dump_macros(struct sp_preprocessor *pp);
 int sp_peek_nonblank_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header);
 int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header);
 bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp);
+int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp_pp_token *ret);
 
 int sp_process_pp_directive(struct sp_preprocessor *pp);
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp);

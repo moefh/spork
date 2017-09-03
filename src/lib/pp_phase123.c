@@ -19,6 +19,8 @@
 #define ERR_UNTERMINATED_STRING  -4
 #define ERR_EOF_IN_COMMENT       -5
 
+#define set_error sp_set_pp_error
+
 #define IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
 #define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
@@ -163,6 +165,8 @@ static int read_header(struct sp_input *in, struct sp_buffer *buf)
 static int read_string(struct sp_input *in, struct sp_buffer *buf)
 {
   buf->size = 0;
+  if (sp_buf_add_byte(buf, CUR) < 0)
+    return ERR_OUT_OF_MEMORY;
   while (true) {
     ADVANCE();
     if (CUR == '\\') {
@@ -185,6 +189,8 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
     if (CUR == '\n' || CUR < 0)
       return ERR_UNTERMINATED_STRING;
     if (CUR == '"') {
+      if (sp_buf_add_byte(buf, CUR) < 0)
+        return ERR_OUT_OF_MEMORY;
       ADVANCE();
       break;
     }
@@ -408,13 +414,13 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
   // error
   if (type < 0) {
     switch (type) {
-    case ERR_ERROR:               return sp_set_pp_error(pp, "internal error");
-    case ERR_OUT_OF_MEMORY:       return sp_set_pp_error(pp, "out of memory");
-    case ERR_UNTERMINATED_STRING: return sp_set_pp_error(pp, "unterminated string");
-    case ERR_UNTERMINATED_HEADER: return sp_set_pp_error(pp, "unterminated header name");
-    case ERR_EOF_IN_COMMENT:      return sp_set_pp_error(pp, "unterminated comment");
+    case ERR_ERROR:               return set_error(pp, "internal error");
+    case ERR_OUT_OF_MEMORY:       return set_error(pp, "out of memory");
+    case ERR_UNTERMINATED_STRING: return set_error(pp, "unterminated string");
+    case ERR_UNTERMINATED_HEADER: return set_error(pp, "unterminated header name");
+    case ERR_EOF_IN_COMMENT:      return set_error(pp, "unterminated comment");
     }
-    return sp_set_pp_error(pp, "internal error");
+    return set_error(pp, "internal error");
   }
 
   // TODO: set location based on 'pos'
@@ -456,10 +462,55 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
   // other tokens
   sp_string_id str_id = sp_add_string(&pp->token_strings, pp->tmp_buf.p);
   if (str_id < 0)
-    return sp_set_pp_error(pp, "out of memory");
+    return set_error(pp, "out of memory");
   tok->type = type;
   tok->data.str_id = str_id;
   return 0;
+}
+
+int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp_pp_token *ret)
+{
+  int punct_id = sp_get_punct_id(str);
+  if (punct_id >= 0) {
+    ret->type = TOK_PP_PUNCT;
+    ret->data.punct_id = punct_id;
+    return 0;
+  }
+
+  // TODO: check correctness of produced token
+  
+  if (str[0] == '.' || IS_DIGIT(str[0])) {
+    ret->type = TOK_PP_NUMBER;
+    ret->data.str_id = sp_add_string(&pp->token_strings, str);
+    if (ret->data.str_id < 0)
+      return set_error(pp, "out of memory");
+    return 0;
+  }
+
+  if (IS_ALPHA(str[0])) {
+    ret->type = TOK_PP_IDENTIFIER;
+    ret->data.str_id = sp_add_string(&pp->token_strings, str);
+    if (ret->data.str_id < 0)
+      return set_error(pp, "out of memory");
+    return 0;
+  }
+
+  if (str[0] == '"') {
+    ret->type = TOK_PP_STRING;
+    ret->data.str_id = sp_add_string(&pp->token_strings, str);
+    if (ret->data.str_id < 0)
+      return set_error(pp, "out of memory");
+    return 0;
+  }
+
+  if (strlen(str) == 1) {
+    ret->type = TOK_PP_OTHER;
+    ret->data.other = str[0];
+    return 0;
+  }
+
+  set_error(pp, "pasting doesn't produce valid token: '%s'", str);
+  return -1;
 }
 
 int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header)
