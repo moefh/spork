@@ -124,3 +124,11 @@ struct sp_pp_token *sp_peek_nonblank_pp_token_from_list(struct sp_pp_token_list 
   return tok;
 }
 
+void sp_dump_pp_token_list(struct sp_pp_token_list *list, struct sp_preprocessor *pp)
+{
+  struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(list);
+  struct sp_pp_token *t = sp_rewind_pp_token_list(list);
+  while (sp_read_pp_token_from_list(list, &t))
+    printf("%s", sp_dump_pp_token(pp, t));
+  sp_set_pp_token_list_pos(list, save_pos);
+}

@@ -8,8 +8,6 @@ STR(  hello \n /* x */
 //x
  world!  )
 
-//#define X(x) #
-
 STR(#)
 STR("hello, world!\n")
 STR(1.2.3)

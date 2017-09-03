@@ -154,6 +154,7 @@ bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2)
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
   case TOK_PP_END_OF_ARG:
+  case TOK_PP_PASTE_MARKER:
     return true;
 
   case TOK_PP_OTHER:
@@ -244,6 +245,10 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
 
   case TOK_PP_END_OF_ARG:
     snprintf(str, sizeof(str), MARK_COLOR("<end-of-arg>"));
+    return str;
+
+  case TOK_PP_PASTE_MARKER:
+    snprintf(str, sizeof(str), MARK_COLOR("<placemarker>"));
     return str;
 
   case TOK_PP_ENABLE_MACRO:

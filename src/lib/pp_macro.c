@@ -175,6 +175,16 @@ struct sp_pp_token_list *sp_get_macro_arg(struct sp_macro_def *macro, struct sp_
   return NULL;
 }
 
+bool sp_macro_arg_is_empty(struct sp_pp_token_list *arg)
+{
+  struct sp_pp_token *a = sp_rewind_pp_token_list(arg);
+  while (sp_read_pp_token_from_list(arg, &a)) {
+    if (! pp_tok_is_end_of_arg(a))
+      return false;
+  }
+  return true;
+}
+
 static int add_predefined_macro(struct sp_preprocessor *pp, enum sp_predefined_macro_id pre_macro_id, const char *name)
 {
   sp_string_id name_id = sp_add_string(&pp->token_strings, name);

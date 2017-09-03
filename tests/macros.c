@@ -9,7 +9,7 @@
               y \
               z
 
-#define X(a ...)  { a, # a, test_ ## a ## f }
+#define X(a)  { a, # a, test_ ## a ## f }
 
 test1: TEST1
 test2: TEST2

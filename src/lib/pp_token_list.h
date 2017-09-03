@@ -39,6 +39,7 @@ bool sp_read_nonblank_pp_token_from_list(struct sp_pp_token_list *tl, struct sp_
 struct sp_pp_token *sp_peek_pp_token_from_list(struct sp_pp_token_list *tl);
 struct sp_pp_token *sp_peek_nonblank_pp_token_from_list(struct sp_pp_token_list *tl);
 bool sp_pp_token_lists_are_equal(struct sp_pp_token_list *l1, struct sp_pp_token_list *l2);
+void sp_dump_pp_token_list(struct sp_pp_token_list *list, struct sp_preprocessor *pp);
 
 #define sp_get_pp_token_list_pos(tl)      ((struct sp_pp_token_list_pos) { .page = (tl)->r_page, .index = (tl)->r_index })
 #define sp_set_pp_token_list_pos(tl,pos)  do { (tl)->r_page = (pos).page; (tl)->r_index = (pos).index; } while (0)
