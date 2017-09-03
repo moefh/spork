@@ -222,7 +222,8 @@ static int read_chars_in_set(struct sp_input *in, struct sp_buffer *buf, const c
       if (sp_buf_add_byte(buf, CUR) < 0)
         return ERR_OUT_OF_MEMORY;
       ADVANCE();
-      if (++n >= max)
+      n++;
+      if (max >= 0 && n >= max)
         break;
       continue;
     }
@@ -230,7 +231,7 @@ static int read_chars_in_set(struct sp_input *in, struct sp_buffer *buf, const c
     break;
   }
 
-  if (n >= min && n <= max)
+  if (n >= min && (max < 0 || n <= max))
     return 0;
   //printf("expected %d-%d chars in set '%s', found %d\n", min, max, set, n);
   return ERR_INVALID_ESCAPE_SEQUENCE;
@@ -241,6 +242,13 @@ static int read_char_const(struct sp_input *in, struct sp_buffer *buf)
   buf->size = 0;
   if (sp_buf_add_byte(buf, CUR) < 0)
     return ERR_OUT_OF_MEMORY;
+  if (CUR == 'L') {
+    ADVANCE();
+    if (CUR == '\\')
+      skip_bs_newline(in);
+    if (sp_buf_add_byte(buf, CUR) < 0)
+      return ERR_OUT_OF_MEMORY;
+  }
   while (true) {
     ADVANCE();
     if (CUR == '\\') {
@@ -271,7 +279,7 @@ static int read_char_const(struct sp_input *in, struct sp_buffer *buf)
           if (sp_buf_add_byte(buf, CUR) < 0)
             return ERR_OUT_OF_MEMORY;
           ADVANCE();
-          int err = read_chars_in_set(in, buf, "0123456789abcdefABCDEF", 1, 2);
+          int err = read_chars_in_set(in, buf, "0123456789abcdefABCDEF", 1, -1);
           if (err < 0)
             return err;
         } else if (CUR == 'u') {
@@ -460,18 +468,28 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
     SET_POS(rewind_pos);
   }
 
+  /* character constant */
+  if (CUR == '\'') {
+    *pos = CUR_POS;
+    return read_char_const(in, buf);
+  }
+  if (CUR == 'L') {
+    int rewind_pos = CUR_POS;
+    ADVANCE();
+    if (CUR == '\'' || (CUR == '\\' && skip_bs_newline(in) && CUR == '\'')) {
+      SET_POS(rewind_pos);
+      *pos = CUR_POS;
+      return read_char_const(in, buf);
+    }
+    SET_POS(rewind_pos);
+  }
+  
   /* identifier */
   if (IS_ALPHA(CUR)) {
     *pos = CUR_POS;
     return read_ident(in, buf);
   }
 
-  /* character constant */
-  if (CUR == '\'') {
-    *pos = CUR_POS;
-    return read_char_const(in, buf);
-  }
-  
   /* punctuation */
   buf->size = 0;
   // ensure we have enough space for any punctuation
@@ -601,6 +619,14 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
     return 0;
   }
 
+  if (str[0] == '\'' || (str[0] == 'L' && str[1] == '\'')) {
+    ret->type = TOK_PP_CHAR_CONST;
+    ret->data.str_id = sp_add_string(&pp->token_strings, str);
+    if (ret->data.str_id < 0)
+      return set_error(pp, "out of memory");
+    return 0;
+  }
+  
   if (IS_ALPHA(str[0])) {
     ret->type = TOK_PP_IDENTIFIER;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
