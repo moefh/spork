@@ -138,7 +138,10 @@ const char *sp_dump_token(struct sp_token *tok, struct sp_string_table *tab)
   case TOK_STRING:
     {
       const uint8_t *in = (const uint8_t *) sp_get_token_string(tok, tab);
-      strcpy(str, "\x1b[1;32m\"");
+      strcpy(str, "\x1b[1;32m");
+      if (tok->data.str_literal.is_wide)
+        strcat(str, "L");
+      strcat(str, "\"");
       char *out = str + strlen(str);
       while (*in != '\0') {
         if (*in == '"') {

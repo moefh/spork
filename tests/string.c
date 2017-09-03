@@ -1,4 +1,5 @@
 
-"abc"
-"a\bc"
-(L"abc")
+"abc";
+"a\bc";
+L"abc";
+"a\u1234b";
