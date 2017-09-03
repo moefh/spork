@@ -34,7 +34,7 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 #define IS_IDENTIFIER()        IS_TOK_TYPE(TOK_PP_IDENTIFIER)
 #define IS_PUNCT(id)           (IS_TOK_TYPE(TOK_PP_PUNCT) && pp->tok.data.punct_id == (id))
 
-static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, char *str, size_t str_size)
+static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, char *str, size_t str_size, bool escape)
 {
   switch (tok->type) {
   case TOK_PP_EOF:
@@ -64,7 +64,13 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
     break;
     
   case TOK_PP_CHAR_CONST:
-    {
+    if (! escape) {
+      const char *src = sp_get_pp_token_string(pp, tok);
+      size_t src_len = strlen(src);
+      if (str_size+1 < src_len) goto err;
+      memcpy(str, src, src_len);
+      str += src_len;
+    } else {
       if (str_size < 1) goto err;
       const char *src = sp_get_pp_token_string(pp, tok);
       for (const char *s = src; *s != '\0'; s++) {
@@ -80,7 +86,13 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
     break;
     
   case TOK_PP_STRING:
-    {
+    if (! escape) {
+      const char *src = sp_get_pp_token_string(pp, tok);
+      size_t src_len = strlen(src);
+      if (str_size+1 < src_len) goto err;
+      memcpy(str, src, src_len);
+      str += src_len;
+    } else {
       if (str_size < 1) goto err;
       const char *src = sp_get_pp_token_string(pp, tok);
       for (const char *s = src; *s != '\0'; s++) {
@@ -130,10 +142,10 @@ static int paste_tokens(struct sp_preprocessor *pp, struct sp_pp_token *tok1, st
   
   char str[4096];
   size_t str_len = 0;
-  if (token_to_string(pp, tok1, str + str_len, sizeof(str) - str_len) < 0)
+  if (token_to_string(pp, tok1, str + str_len, sizeof(str) - str_len, false) < 0)
     return -1;
   str_len += strlen(str);
-  if (token_to_string(pp, tok2, str + str_len, sizeof(str) - str_len) < 0)
+  if (token_to_string(pp, tok2, str + str_len, sizeof(str) - str_len, false) < 0)
     return -1;
 
   return sp_string_to_pp_token(pp, str, ret);
@@ -174,7 +186,7 @@ static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *l
         *cur++ = ' ';
       if (str + sizeof(str) <= cur+1)
         goto err;
-      if (token_to_string(pp, tok, cur, sizeof(str) - (cur-str)) < 0)
+      if (token_to_string(pp, tok, cur, sizeof(str) - (cur-str), true) < 0)
         return -1;
       cur += strlen(cur);
       last_was_space = false;

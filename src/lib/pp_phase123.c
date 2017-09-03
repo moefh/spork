@@ -171,6 +171,13 @@ static int read_string(struct sp_input *in, struct sp_buffer *buf)
   buf->size = 0;
   if (sp_buf_add_byte(buf, CUR) < 0)
     return ERR_OUT_OF_MEMORY;
+  if (CUR == 'L') {
+    ADVANCE();
+    if (CUR == '\\')
+      skip_bs_newline(in);
+    if (sp_buf_add_byte(buf, CUR) < 0)
+      return ERR_OUT_OF_MEMORY;
+  }
   while (true) {
     ADVANCE();
     if (CUR == '\\') {
@@ -451,6 +458,16 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
     *pos = CUR_POS;
     return read_string(in, buf);
   }
+  if (CUR == 'L') {
+    int rewind_pos = CUR_POS;
+    ADVANCE();
+    if (CUR == '"' || (CUR == '\\' && skip_bs_newline(in) && CUR == '"')) {
+      SET_POS(rewind_pos);
+      *pos = CUR_POS;
+      return read_string(in, buf);
+    }
+    SET_POS(rewind_pos);
+  }
 
   /* number */
   if (IS_DIGIT(CUR)) {
@@ -627,16 +644,16 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
     return 0;
   }
   
-  if (IS_ALPHA(str[0])) {
-    ret->type = TOK_PP_IDENTIFIER;
+  if (str[0] == '"' || (str[0] == 'L' && str[1] == '"')) {
+    ret->type = TOK_PP_STRING;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
       return set_error(pp, "out of memory");
     return 0;
   }
 
-  if (str[0] == '"') {
-    ret->type = TOK_PP_STRING;
+  if (IS_ALPHA(str[0])) {
+    ret->type = TOK_PP_IDENTIFIER;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
       return set_error(pp, "out of memory");

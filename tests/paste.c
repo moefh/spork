@@ -11,7 +11,8 @@ paste(,)
 paste(a,)
 paste(,b)
 
-paste(L,'a')
+paste(L,'\a')
+paste(L,"a")
 
 //paste("", paste(\, ""))
 
