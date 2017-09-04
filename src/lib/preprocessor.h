@@ -20,7 +20,7 @@ struct sp_preprocessor {
   struct sp_ast *ast;
 
   struct sp_input *in;
-  struct sp_pp_token_list *in_tokens;
+  struct sp_pp_token_list_walker *in_tokens;
 
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;

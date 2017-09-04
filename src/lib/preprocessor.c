@@ -87,7 +87,8 @@ void sp_dump_macros(struct sp_preprocessor *pp)
   sp_string_id name_id = -1;
   while (sp_next_idht_key(&pp->macros, &name_id)) {
     struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, name_id);
-    sp_dump_macro(macro, pp);
+    if (macro->pre_id == PP_MACRO_NOT_PREDEFINED)
+      sp_dump_macro(macro, pp);
   }
 }
 

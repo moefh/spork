@@ -1,5 +1,5 @@
 
-#define STR(x) HASH x
-#define HASH #
+#define t(x) (x)
 
-STR(a)
+
+t(t(1))

@@ -15,7 +15,7 @@
 #include "punct.h"
 
 #define set_error sp_set_pp_error
-static void add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
+static int add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
 static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 
 #define NEXT_TOKEN()        do { if (sp_next_pp_ph3_token(pp, false) < 0) return -1; } while (0)
@@ -159,8 +159,9 @@ static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *l
   *cur++ = '"';
 
   bool last_was_space = false;
-  struct sp_pp_token *tok = sp_rewind_pp_token_list(list);
-  while (sp_read_pp_token_from_list(list, &tok)) {
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *tok = sp_rewind_pp_token_list(&w, list);
+  while (sp_read_pp_token_from_list(&w, &tok)) {
     switch (tok->type) {
     case TOK_PP_EOF:
       if (str + sizeof(str) <= cur+1)
@@ -215,7 +216,7 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   
   pp->macro_args_reading_level++;
 
-  //printf("READING MACRO ARGS FOR '%s'\n", sp_get_macro_name(macro, pp));
+  //printf("READING %d MACRO ARGS FOR '%s'\n", macro->n_params, sp_get_macro_name(macro, pp));
 
   do {
     if (next_processed_token(pp, false) < 0)
@@ -289,6 +290,9 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
     }
   }
 
+  // adjust stored number of args
+  args->len = macro->n_params;
+
   // append end-of-arg marker to each arg
   for (int i = 0; i < args->len; i++) {
     struct sp_pp_token eoa = ((struct sp_pp_token) { .type = TOK_PP_END_OF_ARG });
@@ -312,7 +316,8 @@ static struct sp_pp_token_list *expand_arg(struct sp_preprocessor *pp, struct sp
     goto err_oom;
 
   //printf("ARG NEXT: %p\n", (void*) arg->next);
-  add_pp_token_list_to_input(pp, arg);
+  if (add_pp_token_list_to_input(pp, arg) < 0)
+    goto err;
   while (true) {
     if (next_processed_token(pp, true) < 0)
       return NULL;
@@ -344,8 +349,9 @@ static int append_arg_to_list(struct sp_pp_token_list *list, struct sp_pp_token_
     return 0;
   }
   
-  struct sp_pp_token *t = sp_rewind_pp_token_list(arg);
-  while (sp_read_pp_token_from_list(arg, &t)) {
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *t = sp_rewind_pp_token_list(&w, arg);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     if (pp_tok_is_end_of_arg(t))
       break;
     if (sp_append_pp_token(list, t) < 0)
@@ -356,8 +362,9 @@ static int append_arg_to_list(struct sp_pp_token_list *list, struct sp_pp_token_
 
 static int append_list_to_list(struct sp_pp_token_list *dest, struct sp_pp_token_list *src)
 {
-  struct sp_pp_token *t = sp_rewind_pp_token_list(src);
-  while (sp_read_pp_token_from_list(src, &t)) {
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *t = sp_rewind_pp_token_list(&w, src);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     if (pp_tok_is_end_of_arg(t))
       break;
     if (sp_append_pp_token(dest, t) < 0)
@@ -386,14 +393,13 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   if (! macro_exp)
     goto err_out_of_memory;
   
-  macro->enabled = false;
-
   // replace args, expanding as necessary
-  struct sp_pp_token *t = sp_rewind_pp_token_list(&macro->body);
-  while (sp_read_pp_token_from_list(&macro->body, &t)) {
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *t = sp_rewind_pp_token_list(&w, &macro->body);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     // # parameter
     if (macro->is_function && pp_tok_is_punct(t, '#')) {
-      struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&macro->body);
+      struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&w);
       if (! next) {
         set_error(pp, "'#' must not be the end of the macro body");
         goto err;
@@ -408,7 +414,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
               goto err_out_of_memory;
             if (t == next)
               break;
-          } while (sp_read_pp_token_from_list(&macro->body, &t));
+          } while (sp_read_pp_token_from_list(&w, &t));
           continue;
         }
       }
@@ -418,7 +424,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
 
     // ## parameter
     if (macro->is_function && pp_tok_is_punct(t, PUNCT_HASHES)) {
-      struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&macro->body);
+      struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&w);
       if (! next) {
         set_error(pp, "'##' must not be the end of the macro body");
         goto err;
@@ -433,7 +439,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
             //printf("-> '%s'\n", sp_dump_pp_token(pp, t));
             if (sp_append_pp_token(macro_exp, t) < 0)
               goto err_out_of_memory;
-          } while (sp_read_pp_token_from_list(&macro->body, &t));
+          } while (sp_read_pp_token_from_list(&w, &t));
           
           // [6.10.3.3] parameter preceded by '##' is not expanded
           if (append_arg_to_list(macro_exp, arg) < 0)
@@ -447,7 +453,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
     if (macro->is_function && pp_tok_is_identifier(t)) {
       struct sp_pp_token_list *arg = sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(t));
       if (arg) {
-        struct sp_pp_token *hashes = sp_peek_nonblank_pp_token_from_list(&macro->body);
+        struct sp_pp_token *hashes = sp_peek_nonblank_pp_token_from_list(&w);
         if (hashes && pp_tok_is_punct(hashes, PUNCT_HASHES)) {
           // [6.10.3.3] parameter followed by '##' is not expanded
           if (append_arg_to_list(macro_exp, arg) < 0)
@@ -472,8 +478,8 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   //printf("<%s>'s macro_exp = ", sp_get_macro_name(macro, pp)); sp_dump_pp_token_list(macro_exp, pp); printf("\n");
 
   bool has_hash = false;
-  t = sp_rewind_pp_token_list(macro_exp);
-  while (sp_read_pp_token_from_list(macro_exp, &t)) {
+  t = sp_rewind_pp_token_list(&w, macro_exp);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     if (pp_tok_is_punct(t, PUNCT_HASHES) || pp_tok_is_punct(t, '#')) {
       has_hash = true;
       break;
@@ -484,24 +490,24 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   struct sp_pp_token_list *out;
   if (has_hash) {
     out = sp_new_pp_token_list(&pp->macro_exp_pool, sp_pp_token_list_size(macro_exp));
-    t = sp_rewind_pp_token_list(macro_exp);
-    while (sp_read_pp_token_from_list(macro_exp, &t)) {
+    t = sp_rewind_pp_token_list(&w, macro_exp);
+    while (sp_read_pp_token_from_list(&w, &t)) {
       // paste
       if (! pp_tok_is_space(t)) {
-        struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(macro_exp);
+        struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(&w);
         struct sp_pp_token *next;
-        if (sp_read_nonblank_pp_token_from_list(macro_exp, &next)) {
+        if (sp_read_nonblank_pp_token_from_list(&w, &next)) {
           if (pp_tok_is_punct(next, PUNCT_HASHES)) {
             struct sp_pp_token *second;
             struct sp_pp_token pasted;
           paste_again:
-            if (sp_read_nonblank_pp_token_from_list(macro_exp, &second)) {
+            if (sp_read_nonblank_pp_token_from_list(&w, &second)) {
               if (paste_tokens(pp, t, second, &pasted) < 0)
                 goto err;
               //printf("pasted: '%s'", sp_dump_pp_token(pp, &pasted));
-              next = sp_peek_nonblank_pp_token_from_list(macro_exp);
+              next = sp_peek_nonblank_pp_token_from_list(&w);
               if (next && pp_tok_is_punct(next, PUNCT_HASHES)) {
-                sp_read_nonblank_pp_token_from_list(macro_exp, &next); // skip '##'
+                sp_read_nonblank_pp_token_from_list(&w, &next); // skip '##'
                 t = &pasted;
                 goto paste_again;
               }
@@ -511,14 +517,14 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
             }
           }
         }
-        sp_set_pp_token_list_pos(macro_exp, save_pos);
+        sp_set_pp_token_list_pos(&w, save_pos);
       }
 
       // stringify
       if (macro->is_function && pp_tok_is_punct(t, '#')) {
-        struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(macro_exp);
+        struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&w);
         if (pp_tok_is_identifier(next) && sp_get_macro_arg(macro, args, sp_get_pp_token_string_id(next))) {
-          if (! sp_read_nonblank_pp_token_from_list(macro_exp, &next)) {
+          if (! sp_read_nonblank_pp_token_from_list(&w, &next)) {
             set_error(pp, "'#' must not be the end of the macro body");
             goto err;
           }
@@ -552,8 +558,8 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
 
   // remove all remaining paste markers
   bool has_paste_marker = false;
-  t = sp_rewind_pp_token_list(macro_exp);
-  while (sp_read_pp_token_from_list(macro_exp, &t)) {
+  t = sp_rewind_pp_token_list(&w, out);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     if (pp_tok_is_paste_marker(t)) {
       has_paste_marker = true;
       break;
@@ -561,8 +567,8 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   }
   if (has_paste_marker) {
     struct sp_pp_token_list *out2 = sp_new_pp_token_list(&pp->macro_exp_pool, sp_pp_token_list_size(out));
-    t = sp_rewind_pp_token_list(out);
-    while (sp_read_pp_token_from_list(out, &t)) {
+    t = sp_rewind_pp_token_list(&w, out);
+    while (sp_read_pp_token_from_list(&w, &t)) {
       if (pp_tok_is_paste_marker(t))
         continue;
       if (sp_append_pp_token(out2, t) < 0)
@@ -572,8 +578,8 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   }
   
   // [6.10.3.4] 2. prevent any further expansion of an identifier with the same name as the macro being expanded
-  t = sp_rewind_pp_token_list(out);
-  while (sp_read_pp_token_from_list(out, &t)) {
+  t = sp_rewind_pp_token_list(&w, out);
+  while (sp_read_pp_token_from_list(&w, &t)) {
     if (pp_tok_is_identifier(t) && t->data.str_id == macro->name_id)
       t->macro_dead = true;
   }
@@ -584,6 +590,8 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
   enable_macro.data.str_id = macro->name_id;
   if (sp_append_pp_token(out, &enable_macro) < 0)
     goto err_out_of_memory;
+
+  macro->enabled = false;
   return out;
 
  err_out_of_memory:
@@ -597,7 +605,7 @@ void dump_input_buffer(struct sp_preprocessor *pp)
   if (! pp->in_tokens)
     return;
 
-  struct sp_pp_token_list *tokens = pp->in_tokens;
+  struct sp_pp_token_list_walker *tokens = pp->in_tokens;
   while (tokens) {
     struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(tokens);
     struct sp_pp_token *next;
@@ -608,9 +616,11 @@ void dump_input_buffer(struct sp_preprocessor *pp)
   }
 }
 
-static void add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list)
+static int add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list)
 {
-  sp_rewind_pp_token_list(list);
+  struct sp_pp_token_list_walker *w = sp_new_pp_token_list_walker(&pp->macro_exp_pool, list);
+  if (! w)
+    return set_error(pp, "out of memory");
 #if 0
   if (list == pp->in_tokens) {
     printf("\n\n");
@@ -629,8 +639,9 @@ static void add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_
   printf("]===\n");
   printf("=============================================================\n");
 #endif
-  list->next = pp->in_tokens;
-  pp->in_tokens = list;
+  w->next = pp->in_tokens;
+  pp->in_tokens = w;
+  return 0;
 }
 
 static int peek_nonblank_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
@@ -638,7 +649,7 @@ static int peek_nonblank_token(struct sp_preprocessor *pp, struct sp_pp_token *t
   // peek in buffer
   if (pp->in_tokens) {
     bool found = false;
-    struct sp_pp_token_list *tokens = pp->in_tokens;
+    struct sp_pp_token_list_walker *tokens = pp->in_tokens;
     while (tokens) {
       struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(tokens);
       struct sp_pp_token *next;
@@ -791,7 +802,8 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
             }
             if (! macro_exp)
               return -1;
-            add_pp_token_list_to_input(pp, macro_exp);
+            if (add_pp_token_list_to_input(pp, macro_exp) < 0)
+              return -1;
             pp->macro_expansion_level--;
             continue;
           }
