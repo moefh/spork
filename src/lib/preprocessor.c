@@ -90,6 +90,13 @@ void sp_dump_macros(struct sp_preprocessor *pp)
     if (macro->pre_id == PP_MACRO_NOT_PREDEFINED)
       sp_dump_macro(macro, pp);
   }
+
+  name_id = -1;
+  while (sp_next_idht_key(&pp->macros, &name_id)) {
+    struct sp_macro_def *macro = sp_get_idht_value(&pp->macros, name_id);
+    if (macro->pre_id != PP_MACRO_NOT_PREDEFINED)
+      sp_dump_macro(macro, pp);
+  }
 }
 
 int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)

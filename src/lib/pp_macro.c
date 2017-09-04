@@ -8,22 +8,31 @@
 #include "preprocessor.h"
 #include "punct.h"
 
-#define ADD_PREDEF_MACRO(name) { PP_MACRO_ ## name, "__" # name "__" }
+#define ADD_PREDEF_OBJ_MACRO(name) { PP_MACRO_ ## name, "__" # name "__" }
 
 static const struct {
   enum sp_predefined_macro_id id;
   const char *name;
-} predefined_macros[] = {
-  ADD_PREDEF_MACRO(DATE),
-  ADD_PREDEF_MACRO(TIME),
-  ADD_PREDEF_MACRO(FILE),
-  ADD_PREDEF_MACRO(LINE),
-  ADD_PREDEF_MACRO(STDC),
-  ADD_PREDEF_MACRO(STDC_VERSION),
-  ADD_PREDEF_MACRO(STDC_HOSTED),
-  ADD_PREDEF_MACRO(STDC_MB_MIGHT_NEQ_WC),
+} predefined_obj_macros[] = {
+  ADD_PREDEF_OBJ_MACRO(DATE),
+  ADD_PREDEF_OBJ_MACRO(TIME),
+  ADD_PREDEF_OBJ_MACRO(FILE),
+  ADD_PREDEF_OBJ_MACRO(LINE),
+  ADD_PREDEF_OBJ_MACRO(STDC),
+  ADD_PREDEF_OBJ_MACRO(STDC_VERSION),
+  ADD_PREDEF_OBJ_MACRO(STDC_HOSTED),
+  ADD_PREDEF_OBJ_MACRO(STDC_MB_MIGHT_NEQ_WC),
 };
 
+#define ADD_PREDEF_FUNC_MACRO(name, n_params) { PP_MACRO ## name, # name, n_params }
+
+static const struct {
+  enum sp_predefined_macro_id id;
+  const char *name;
+  int n_params;
+} predefined_func_macros[] = {
+  ADD_PREDEF_FUNC_MACRO(_Pragma, 1),
+};
 
 static int validate_macro_params(struct sp_macro_def *macro, struct sp_preprocessor *pp)
 {
@@ -145,11 +154,16 @@ void sp_dump_macro(struct sp_macro_def *macro, struct sp_preprocessor *pp)
   } else {
     printf(" ");
   }
-  struct sp_pp_token_list_walker w;
-  struct sp_pp_token *t = sp_rewind_pp_token_list(&w, &macro->body);
-  while (sp_read_pp_token_from_list(&w, &t))
-    printf("%s", sp_dump_pp_token(pp, t));
-  printf("\n");
+
+  if (macro->pre_id != PP_MACRO_NOT_PREDEFINED) {
+    printf("<predefined>\n");
+  } else {
+    struct sp_pp_token_list_walker w;
+    struct sp_pp_token *t = sp_rewind_pp_token_list(&w, &macro->body);
+    while (sp_read_pp_token_from_list(&w, &t))
+      printf("%s", sp_dump_pp_token(pp, t));
+    printf("\n");
+  }
 }
 
 const char *sp_get_macro_name(struct sp_macro_def *macro, struct sp_preprocessor *pp)
@@ -191,7 +205,7 @@ bool sp_macro_arg_is_empty(struct sp_pp_token_list *arg)
   return true;
 }
 
-static int add_predefined_macro(struct sp_preprocessor *pp, enum sp_predefined_macro_id pre_macro_id, const char *name)
+static int add_predefined_obj_macro(struct sp_preprocessor *pp, enum sp_predefined_macro_id pre_macro_id, const char *name)
 {
   sp_string_id name_id = sp_add_string(&pp->token_strings, name);
   if (name_id < 0)
@@ -210,22 +224,63 @@ static int add_predefined_macro(struct sp_preprocessor *pp, enum sp_predefined_m
   return 0;
 }
 
-int sp_add_predefined_macros(struct sp_preprocessor *pp)
+static int add_predefined_func_macro(struct sp_preprocessor *pp, enum sp_predefined_macro_id pre_macro_id, const char *name, int n_params)
 {
-  for (int i = 0; i < ARRAY_SIZE(predefined_macros); i++)
-    if (add_predefined_macro(pp, predefined_macros[i].id, predefined_macros[i].name) < 0)
+  sp_string_id name_id = sp_add_string(&pp->token_strings, name);
+  if (name_id < 0)
+    return -1;
+
+  struct sp_pp_token_list list;
+  sp_init_pp_token_list(&list, pp->pool, n_params);
+  for (int i = 0; i < n_params; i++) {
+    char param_name[2] = { 'a' + i, '\0' };
+    struct sp_pp_token param;
+    param.type = TOK_PP_IDENTIFIER;
+    param.data.str_id = sp_add_string(&pp->token_strings, param_name);
+    if (param.data.str_id < 0)
       return -1;
+    if (sp_append_pp_token(&list, &param) < 0)
+      return -1;
+  }
+  struct sp_macro_def *macro = sp_new_macro_def(pp, name_id, true, false,
+                                                false, &list, &list);
+  if (! macro)
+    return -1;
+  macro->pre_id = pre_macro_id;
+  
+  if (sp_add_idht_entry(&pp->macros, name_id, macro) < 0)
+    return -1;
   return 0;
 }
 
-struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro)
+int sp_add_predefined_macros(struct sp_preprocessor *pp)
 {
+  for (int i = 0; i < ARRAY_SIZE(predefined_obj_macros); i++)
+    if (add_predefined_obj_macro(pp, predefined_obj_macros[i].id, predefined_obj_macros[i].name) < 0)
+      goto err;
+  for (int i = 0; i < ARRAY_SIZE(predefined_func_macros); i++)
+    if (add_predefined_func_macro(pp, predefined_func_macros[i].id, predefined_func_macros[i].name, predefined_func_macros[i].n_params) < 0)
+      goto err;
+  return 0;
+
+ err:
+  return sp_set_pp_error(pp, "out of memory");
+}
+
+struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args)
+{
+  UNUSED(args);
+  
   struct sp_pp_token tok;
   switch (macro->pre_id) {
   case PP_MACRO_NOT_PREDEFINED:
-    tok.type = TOK_PP_SPACE;
+    tok.type = TOK_PP_EOF;
     break;
-    
+
+  case PP_MACRO_Pragma:
+    tok.type = TOK_PP_EOF;
+    break;
+
   case PP_MACRO_DATE:
   case PP_MACRO_TIME:
   case PP_MACRO_FILE:
@@ -244,8 +299,10 @@ struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, 
   struct sp_pp_token_list *list = sp_new_pp_token_list(&pp->macro_exp_pool, 1);
   if (! list)
     goto err_oom;
-  if (sp_append_pp_token(list, &tok) < 0)
-    goto err_oom;
+  if (tok.type != TOK_PP_EOF) {
+    if (sp_append_pp_token(list, &tok) < 0)
+      goto err_oom;
+  }
   return list;
   
  err_oom:

@@ -786,17 +786,17 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
           } else if (! macro->is_function || pp_tok_is_punct(&next, '(')) {
             pp->macro_expansion_level++;
             struct sp_pp_token_list *macro_exp;
+            struct sp_macro_args *args = NULL;
+            if (macro->is_function) {
+              //printf("<reading args for %s>", sp_get_macro_name(macro, pp));
+              args = read_macro_args(pp, macro);
+              if (! args)
+                return -1;
+            }
             if (macro->pre_id != PP_MACRO_NOT_PREDEFINED) {
-              //printf("expanding predefined macro\n");
-              macro_exp = sp_expand_predefined_macro(pp, macro);
+              //printf("<expanding predefined macro %s>", sp_get_macro_name(macro, pp));
+              macro_exp = sp_expand_predefined_macro(pp, macro, args);
             } else {
-              struct sp_macro_args *args = NULL;
-              if (macro->is_function) {
-                //printf("<reading args for %s>", sp_get_macro_name(macro, pp));
-                args = read_macro_args(pp, macro);
-                if (! args)
-                  return -1;
-              }
               //printf("<expanding macro %s>", sp_get_macro_name(macro, pp));
               macro_exp = expand_macro(pp, macro, args);
             }
