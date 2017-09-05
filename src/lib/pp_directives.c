@@ -80,9 +80,8 @@ static const char *get_pp_directive_name(enum pp_directive_type dir)
   return NULL;
 }
 
-static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_header, struct sp_pp_token_list **ret)
+static int read_unexpanded_directive_args(struct sp_preprocessor *pp, bool allow_header, struct sp_pp_token_list **ret)
 {
-  // read unexpanded tokens
   sp_clear_mem_pool(&pp->directive_pool);
   struct sp_pp_token_list *expr = sp_new_pp_token_list(&pp->directive_pool, 10);
   if (! expr)
@@ -97,6 +96,19 @@ static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_h
     if (sp_append_pp_token(expr, &pp->tok) < 0)
       goto err_oom;
   }
+  *ret = expr;
+  return 0;
+
+ err_oom:
+  return set_error(pp, "out of memory");
+}
+
+static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_header, struct sp_pp_token_list **ret)
+{
+  // read unexpanded tokens
+  struct sp_pp_token_list *expr = NULL;
+  if (read_unexpanded_directive_args(pp, allow_header, &expr) < 0)
+    return -1;
 
   // add <end-of-list> token to expand
   struct sp_pp_token end_of_list = pp->tok;
@@ -130,6 +142,33 @@ static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_h
 
  err_oom:
   return set_error(pp, "out of memory");
+}
+
+/* ================================================ */
+/* == #error ====================================== */
+
+static int process_error(struct sp_preprocessor *pp)
+{
+  // read unexpanded tokens
+  struct sp_pp_token_list *args = NULL;
+  if (read_unexpanded_directive_args(pp, false, &args) < 0)
+    return -1;
+
+  char str[1024];
+  size_t str_len = 0;
+
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *tok = sp_rewind_pp_token_list(&w, args);
+  while (sp_read_pp_token_from_list(&w, &tok)) {
+    const char *s = sp_dump_pp_token(pp, tok);
+    size_t s_len = strlen(s);
+    if (str_len + s_len + 2 < str_len || str_len + s_len + 2 > sizeof(str))
+      return set_error(pp, "error message too long");
+    memcpy(str + str_len, s, s_len);
+    str_len += s_len;
+  }
+  str[str_len] = '\0';
+  return set_error(pp, "#error %s", str);
 }
 
 /* ================================================ */
@@ -626,9 +665,9 @@ int sp_process_pp_directive(struct sp_preprocessor *pp)
   case PP_DIR_include: return process_include(pp);
   case PP_DIR_define:  return process_define(pp);
   case PP_DIR_undef:   return process_undef(pp);
+  case PP_DIR_error:   return process_error(pp);
 
   case PP_DIR_line:
-  case PP_DIR_error:
   case PP_DIR_pragma:
     return set_error(pp, "preprocessor directive is not implemented: '%s'", directive_name);
 

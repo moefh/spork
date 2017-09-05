@@ -6,10 +6,7 @@
 
 #include "internal.h"
 #include "token.h"
-
-// TODO: move to punct.[ch]
-int sp_get_punct_id(const char *name);
-const char *sp_get_punct_name(int punct_id);
+#include "punct.h"
 
 /* keywords */
 

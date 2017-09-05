@@ -3,7 +3,6 @@
 
 #define STRVAR(...) # __VA_ARGS__
 
-// TODO: should remove trailing spaces from args
 STR(  hello \n /* x */
 //x
  world!  );
