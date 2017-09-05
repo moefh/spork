@@ -280,7 +280,9 @@ static int process_define(struct sp_preprocessor *pp)
 
 static int eval_cond_expr_list(struct sp_preprocessor *pp, struct sp_pp_token_list *expr, bool *ret)
 {
-  // TODO: properly eval conditional expression
+  // TODO: properly eval conditional expression according to [6.10.1]
+  // paragraph 4.  We should convert the pp-tokens in 'expr' to
+  // tokens, parse the resulting expression and evaluate it.
   
   sp_string_id str_id_zero = sp_add_string(&pp->token_strings, "0");
   if (str_id_zero < 0)
@@ -299,7 +301,7 @@ static int eval_cond_expr_list(struct sp_preprocessor *pp, struct sp_pp_token_li
       }
     }
   }
-  return set_error(pp, "evaluation of complex conditionals not implemented, only '0', '1' or 'defined(IDENT)' are supported");
+  return set_error(pp, "evaluation of complex conditionals is not implemented, only '0', '1' or 'defined IDENT' are supported");
 }
 
 static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
@@ -358,12 +360,13 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
     if (IS_SPACE())
       continue;
 
-    // defined
+    // "defined"
     if (IS_IDENTIFIER() && sp_get_pp_token_string_id(&pp->tok) == str_id_defined) {
       defined_reading_state = 1;
       continue;
     }
 
+    // tokens following "defined"
     switch (defined_reading_state) {
     case 1:  // defined
       if (IS_PUNCT('(')) {
@@ -395,12 +398,19 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
       continue;
     }
 
-    //printf("adding -> '%s'\n", sp_dump_pp_token(pp, tok));
-    if (sp_append_pp_token(exp_expr, &pp->tok) < 0)
+    struct sp_pp_token tok = pp->tok;
+
+    // other identifiers are replaced with "0"
+    if (IS_IDENTIFIER()) {
+      tok.type = TOK_PP_NUMBER;
+      tok.data.str_id = str_id_zero;
+    }
+
+    //printf("adding -> '%s'\n", sp_dump_pp_token(pp, &tok));
+    if (sp_append_pp_token(exp_expr, &tok) < 0)
       return set_error(pp, "out of memory");
   }
   
-  //printf("TODO: eval contitional expression: << "); sp_dump_pp_token_list(exp_expr, pp); printf(" >>\n");
   if (eval_cond_expr_list(pp, exp_expr, ret) < 0)
     return -1;
   
