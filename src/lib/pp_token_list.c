@@ -18,6 +18,8 @@ struct sp_pp_token_list *sp_new_pp_token_list(struct sp_mem_pool *pool, int page
 
 void sp_init_pp_token_list(struct sp_pp_token_list *tl, struct sp_mem_pool *pool, int page_size)
 {
+  if (page_size == 0)
+    page_size = 1;
   tl->pool = pool;
   tl->page_list = NULL;
   tl->last_page = NULL;
