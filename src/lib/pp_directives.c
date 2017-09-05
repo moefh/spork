@@ -463,7 +463,7 @@ static int process_conditional(struct sp_preprocessor *pp, enum pp_directive_typ
     break;
 
   case PP_DIR_elif:
-    if (pp->cond_level < 0)
+    if (pp->cond_level < 0 || pp->cond_level < pp->in->base_cond_level)
       return set_error(pp, "'#elif' without '#if'");
     if (pp->cond_state[pp->cond_level] == PP_COND_INACTIVE) {
       bool result;
@@ -480,7 +480,7 @@ static int process_conditional(struct sp_preprocessor *pp, enum pp_directive_typ
     break;
 
   case PP_DIR_else:
-    if (pp->cond_level < 0)
+    if (pp->cond_level < 0 || pp->cond_level <= pp->in->base_cond_level)
       return set_error(pp, "'#else' without '#if'");
     if (pp->cond_state[pp->cond_level] == PP_COND_ACTIVE)
       pp->cond_state[pp->cond_level] = PP_COND_DONE;
@@ -491,7 +491,7 @@ static int process_conditional(struct sp_preprocessor *pp, enum pp_directive_typ
     break;
 
   case PP_DIR_endif:
-    if (pp->cond_level < 0)
+    if (pp->cond_level < 0 || pp->cond_level <= pp->in->base_cond_level)
       return set_error(pp, "'#endif' without '#if'");
     pp->cond_level--;
     if (! IS_NEWLINE() && ! IS_EOF())
@@ -515,19 +515,20 @@ int sp_process_pp_directive(struct sp_preprocessor *pp)
   if (IS_NEWLINE())
     return 0;
   
-  if (! IS_IDENTIFIER())
-    return set_error(pp, "invalid input after '#': '%s'", sp_dump_pp_token(pp, &pp->tok));
+  if (! IS_IDENTIFIER()) {
+    set_error(pp, "invalid input after '#': '%s'", sp_dump_pp_token(pp, &pp->tok));
+    goto err;
+  }
 
   const char *directive_name = sp_get_pp_token_string(pp, &pp->tok);
   enum pp_directive_type directive;
-  if (! find_pp_directive(directive_name, &directive))
-    return set_error(pp, "invalid preprocessing directive: '#%s'", directive_name);
-  
-  switch (directive) {
-  case PP_DIR_include: return process_include(pp);
-  case PP_DIR_define:  return process_define(pp);
-  case PP_DIR_undef:   return process_undef(pp);
+  if (! find_pp_directive(directive_name, &directive)) {
+    set_error(pp, "invalid preprocessing directive: '#%s'", directive_name);
+    goto err;
+  }
 
+  // always process conditionals
+  switch (directive) {
   case PP_DIR_if:
   case PP_DIR_ifdef:
   case PP_DIR_ifndef:
@@ -535,11 +536,36 @@ int sp_process_pp_directive(struct sp_preprocessor *pp)
   case PP_DIR_else:
   case PP_DIR_endif:
     return process_conditional(pp, directive);
-    
+
+  default:;
+  }
+
+  // dont process anything else unless we should
+  if (pp->cond_level >= 0 && pp->cond_state[pp->cond_level] != PP_COND_ACTIVE)
+    return 0;
+  
+  switch (directive) {
+  case PP_DIR_include: return process_include(pp);
+  case PP_DIR_define:  return process_define(pp);
+  case PP_DIR_undef:   return process_undef(pp);
+
   case PP_DIR_line:
   case PP_DIR_error:
   case PP_DIR_pragma:
     return set_error(pp, "preprocessor directive is not implemented: '%s'", directive_name);
+
+  case PP_DIR_if:
+  case PP_DIR_ifdef:
+  case PP_DIR_ifndef:
+  case PP_DIR_elif:
+  case PP_DIR_else:
+  case PP_DIR_endif:;
   }
   return set_error(pp, "invalid preprocessor directive: '#%s'", directive_name);
+
+ err:
+  // only error if we should be processing the directive
+  if (pp->cond_level < 0 || pp->cond_state[pp->cond_level] == PP_COND_ACTIVE)
+    return -1;
+  return 0;
 }

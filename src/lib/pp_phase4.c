@@ -743,6 +743,8 @@ int sp_next_pp_ph4_processed_token(struct sp_preprocessor *pp, bool expand_macro
         return set_error(pp, "unterminated argument list for macro");
       if (! pp->in->next)
         return 0;
+      if (pp->in->base_cond_level != pp->cond_level)
+        return set_error(pp, "unterminated preprocessing conditional");
       struct sp_input *next = pp->in->next;
       sp_free_input(pp->in);
       pp->in = next;
