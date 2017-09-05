@@ -4,16 +4,13 @@ A toy interpreter for the C language in the very early stages.
 
 ## Progress
 
-- Translation phases 1 to 4 (most of preprocessing) are mostly done.
+- Translation phases 1 to 4 (most of preprocessing): mostly done. Largest missing piece is properly evaluating conditional expressions for `#if` (will probably have to wait until after language parsing is done). Also missing are some directives like `#line` and `#pragma` and some small details in others, like performing macro expansion on `#include` file names.
 
-- Phases 5 and 6 should be easy: process escape sequences in character
-constants and string literals and join adjacent strings.
+- Phases 5 and 6 (converting char constants and string literals): about half way done. Most escape sequences are handled and string literals are joined. Joining wide strings with normal strings is not done, and neither are universal character escapes (`\u` and `\U`).
 
-- First bit of phase 7 is also easy: converting preprocessing tokens to tokens.
+- First bit of phase 7 (converting preprocessing tokens to tokens): in progress. Keywords, identifiers, inetegers, floats and strings are being converted. Missing character constants.
 
-- The rest of phase 7 is where the fun begins: parsing and compilation.
-
-- Translation phase 8 is linking.
+- The rest of phase 7 (parsing and compilation) and phase 8 (linking): not started.
 
 ## Name
 
