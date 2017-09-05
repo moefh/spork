@@ -448,7 +448,7 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
     return '\n';
   }
 
-  /* <header> */
+  /* <header> or "header" */
   if (parse_header && (CUR == '<' || CUR == '"')) {
     *pos = CUR_POS;
     return read_header(in, buf);

@@ -32,7 +32,7 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   sp_init_buffer(&pp->tmp_buf, pool);
   sp_init_buffer(&pp->tmp_str_buf, pool);
   sp_init_mem_pool(&pp->macro_exp_pool);
-  sp_init_mem_pool(&pp->cond_directive_pool);
+  sp_init_mem_pool(&pp->directive_pool);
 
   sp_add_predefined_macros(pp);
 }
@@ -44,7 +44,7 @@ void sp_destroy_preprocessor(struct sp_preprocessor *pp)
     sp_free_input(pp->in);
     pp->in = next;
   }
-  sp_destroy_mem_pool(&pp->cond_directive_pool);
+  sp_destroy_mem_pool(&pp->directive_pool);
   sp_destroy_mem_pool(&pp->macro_exp_pool);
 }
 

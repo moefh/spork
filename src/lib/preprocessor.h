@@ -32,7 +32,7 @@ struct sp_preprocessor {
 
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
-  struct sp_mem_pool cond_directive_pool;
+  struct sp_mem_pool directive_pool;
   struct sp_string_table token_strings;
   
   struct sp_buffer tmp_buf;

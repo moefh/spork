@@ -80,24 +80,85 @@ static const char *get_pp_directive_name(enum pp_directive_type dir)
   return NULL;
 }
 
+static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_header, struct sp_pp_token_list **ret)
+{
+  // read unexpanded tokens
+  sp_clear_mem_pool(&pp->directive_pool);
+  struct sp_pp_token_list *expr = sp_new_pp_token_list(&pp->directive_pool, 10);
+  if (! expr)
+    goto err_oom;
+  while (true) {
+    if (allow_header)
+      NEXT_HEADER_TOKEN();
+    else
+      NEXT_TOKEN();
+    if (IS_NEWLINE() || IS_EOF())
+      break;
+    if (sp_append_pp_token(expr, &pp->tok) < 0)
+      goto err_oom;
+  }
+
+  // add <end-of-list> token to expand
+  struct sp_pp_token end_of_list = pp->tok;
+  end_of_list.type = TOK_PP_END_OF_LIST;
+  if (sp_append_pp_token(expr, &end_of_list) < 0)
+    goto err_oom;
+
+  //printf("expanding args << "); sp_dump_pp_token_list(expr, pp); printf(" >>\n");
+
+  // expand
+  if (sp_add_pp_token_list_to_ph4_input(pp, expr) < 0)
+    return -1;
+  struct sp_pp_token_list *exp_expr = sp_new_pp_token_list(&pp->directive_pool, sp_pp_token_list_size(expr));
+  if (! exp_expr)
+    goto err_oom;
+  while (true) {
+    if (sp_next_pp_ph4_processed_token(pp, true) < 0)
+      return -1;
+    if (IS_EOF())
+      return set_error(pp, "unterminated expression");
+    if (IS_END_OF_LIST())
+      break;
+    //printf("exp-> %s\n", sp_dump_pp_token(pp, &pp->tok));
+    if (sp_append_pp_token(exp_expr, &pp->tok) < 0)
+      goto err_oom;
+  }
+  
+  sp_clear_mem_pool(&pp->directive_pool);
+  *ret = exp_expr;
+  return 0;
+
+ err_oom:
+  return set_error(pp, "out of memory");
+}
+
 /* ================================================ */
 /* == #include ==================================== */
 
 static int process_include(struct sp_preprocessor *pp)
 {
-  do {
-    NEXT_HEADER_TOKEN();
-  } while (IS_SPACE());
+  struct sp_pp_token_list *args = NULL;
+  if (read_expanded_directive_args(pp, true, &args) < 0)
+    return -1;
+
+  struct sp_pp_token *header = NULL;
+  struct sp_pp_token_list_walker w;
+  struct sp_pp_token *tok = sp_rewind_pp_token_list(&w, args);
+  while (sp_read_pp_token_from_list(&w, &tok)) {
+    if (pp_tok_is_header_name(tok) || pp_tok_is_string(tok)) {
+      header = tok;
+      continue;
+    }
+    if (! pp_tok_is_space(tok)) {
+      if (header)
+        return set_error(pp, "extra token after include file name: '%s'", sp_dump_pp_token(pp, tok));
+      break;
+    }
+  }
+  if (! header)
+    return set_error(pp, "expected <filename> or \"filename\"");
   
-  if (! IS_PP_HEADER_NAME())   // TODO: allow macro expansion
-    return set_error(pp, "bad include file name: '%s'", sp_dump_pp_token(pp, &pp->tok));
-  
-  const char *include_file = sp_get_pp_token_string(pp, &pp->tok);
-  do {
-    NEXT_TOKEN();
-  } while (IS_SPACE());
-  if (! IS_NEWLINE())
-    return set_error(pp, "unexpected input after include file name: '%s'", sp_dump_pp_token(pp, &pp->tok));
+  const char *include_file = sp_get_pp_token_string(pp, tok);
 
   // remove surrounding <> or ""
   char filename[256];
@@ -307,11 +368,13 @@ static int eval_cond_expr_list(struct sp_preprocessor *pp, struct sp_pp_token_li
 static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
 {
   // read unexpanded expression
-  sp_clear_mem_pool(&pp->cond_directive_pool);
-  struct sp_pp_token_list *expr = sp_new_pp_token_list(&pp->cond_directive_pool, 10);
+  sp_clear_mem_pool(&pp->directive_pool);
+  struct sp_pp_token_list *expr = sp_new_pp_token_list(&pp->directive_pool, 10);
+  if (! expr)
+    goto err_oom;
   while (! IS_NEWLINE() && ! IS_EOF()) {
     if (sp_append_pp_token(expr, &pp->tok) < 0)
-      return set_error(pp, "out of memory");
+      goto err_oom;
     NEXT_TOKEN();
   }
   if (sp_pp_token_list_size(expr) == 0)
@@ -321,14 +384,14 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
   struct sp_pp_token end_of_list = pp->tok;
   end_of_list.type = TOK_PP_END_OF_LIST;
   if (sp_append_pp_token(expr, &end_of_list) < 0)
-    return set_error(pp, "out of memory");
+    goto err_oom;
 
   // kill every 'define' and the following identifier in 'expr'
   sp_string_id str_id_defined = sp_add_string(&pp->token_strings, "defined");
   sp_string_id str_id_zero = sp_add_string(&pp->token_strings, "0");
   sp_string_id str_id_one = sp_add_string(&pp->token_strings, "1");
   if (str_id_defined < 0 || str_id_zero < 0 || str_id_one < 0)
-    return set_error(pp, "out of memory");
+    goto err_oom;
   struct sp_pp_token_list_walker w;
   struct sp_pp_token *tok = sp_rewind_pp_token_list(&w, expr);
   bool last_was_defined = false;
@@ -348,7 +411,9 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
   //printf("EXPANDING: << "); sp_dump_pp_token_list(expr, pp); printf(" >>\n");
   if (sp_add_pp_token_list_to_ph4_input(pp, expr) < 0)
     return -1;
-  struct sp_pp_token_list *exp_expr = sp_new_pp_token_list(&pp->cond_directive_pool, sp_pp_token_list_size(expr));
+  struct sp_pp_token_list *exp_expr = sp_new_pp_token_list(&pp->directive_pool, sp_pp_token_list_size(expr));
+  if (! exp_expr)
+    goto err_oom;
   int defined_reading_state = 0;
   while (true) {
     if (sp_next_pp_ph4_processed_token(pp, true) < 0)
@@ -386,7 +451,7 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
         else
           val.data.str_id = str_id_zero;
         if (sp_append_pp_token(exp_expr, &val) < 0)
-          return set_error(pp, "out of memory");
+          goto err_oom;
         continue;
       }
       return set_error(pp, (defined_reading_state == 1) ? "expected '(' or identifier" : "expected identifier");
@@ -408,14 +473,17 @@ static int test_cond_expr(struct sp_preprocessor *pp, bool *ret)
 
     //printf("adding -> '%s'\n", sp_dump_pp_token(pp, &tok));
     if (sp_append_pp_token(exp_expr, &tok) < 0)
-      return set_error(pp, "out of memory");
+      goto err_oom;
   }
   
   if (eval_cond_expr_list(pp, exp_expr, ret) < 0)
     return -1;
   
-  sp_clear_mem_pool(&pp->cond_directive_pool);
+  sp_clear_mem_pool(&pp->directive_pool);
   return 0;
+
+ err_oom:
+  return set_error(pp, "out of memory");
 }
 
 static int skip_cond_expr(struct sp_preprocessor *pp)

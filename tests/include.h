@@ -1,1 +1,1 @@
-TEST(f,
+"from include file: " NUM;

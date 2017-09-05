@@ -47,6 +47,7 @@ bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2);
 #define pp_tok_is_newline(tok)      ((tok)->type == TOK_PP_NEWLINE)
 #define pp_tok_is_space(tok)        ((tok)->type == TOK_PP_SPACE)
 #define pp_tok_is_number(tok)       ((tok)->type == TOK_PP_NUMBER)
+#define pp_tok_is_header_name(tok)  ((tok)->type == TOK_PP_HEADER_NAME)
 #define pp_tok_is_string(tok)       ((tok)->type == TOK_PP_STRING)
 #define pp_tok_is_identifier(tok)   ((tok)->type == TOK_PP_IDENTIFIER)
 #define pp_tok_is_any_punct(tok)    ((tok)->type == TOK_PP_PUNCT)
