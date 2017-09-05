@@ -17,8 +17,8 @@ A toy interpreter for the C language in the very early stages.
   done, and neither are universal character escapes (`\u` and `\U`).
 
 - First bit of phase 7 (converting preprocessing tokens to tokens): in
-  progress. Keywords, identifiers, inetegers, floats and strings are
-  being converted. Missing character constants.
+  progress. Keywords, identifiers, integers, floats and strings are
+  converted. Character constants are missing.
 
 - The rest of phase 7 (parsing and compilation) and phase 8 (linking):
   not started.
