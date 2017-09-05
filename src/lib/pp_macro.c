@@ -2,11 +2,13 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "pp_macro.h"
 #include "pp_token.h"
 #include "preprocessor.h"
 #include "punct.h"
+#include "ast.h"
 
 #define ADD_PREDEF_OBJ_MACRO(name) { PP_MACRO_ ## name, "__" # name "__" }
 
@@ -267,8 +269,67 @@ int sp_add_predefined_macros(struct sp_preprocessor *pp)
   return sp_set_pp_error(pp, "out of memory");
 }
 
-struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args)
+static void escape_file_name(char *dest, size_t dest_len, const char *src)
 {
+  size_t p = 0;
+
+  dest[p++] = '"';
+  while (*src && p+2 < dest_len) {
+    if (*src == '\\' || *src == '"') {
+      if (p+3 >= dest_len)
+        break;
+      dest[p++] = '\\';
+      dest[p++] = *src++;
+    } else
+      dest[p++] = *src++;
+  }
+  if (p+2 > dest_len)
+    p = dest_len - 2;
+  dest[p++] = '"';
+  dest[p++] = '\0';
+}
+
+static int get_current_datetime(struct sp_preprocessor *pp, struct sp_src_loc loc)
+{
+  if (pp->date_str_id >= 0 && pp->time_str_id >= 0)
+    return 0;
+  
+  static const char *month_names[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
+  time_t cur_ts = time(NULL);
+  if (cur_ts == (time_t) -1)
+    return sp_set_pp_error_at(pp, loc, "can't read current time");
+  struct tm *cur_tm = localtime(&cur_ts);
+  if (! cur_tm)
+    return sp_set_pp_error_at(pp, loc, "can't read current time");
+  char str[256];
+  
+  if (pp->date_str_id < 0) {
+    snprintf(str, sizeof(str), "\"%s %2d %4d\"", month_names[cur_tm->tm_mon], cur_tm->tm_mday, cur_tm->tm_year + 1900);
+    pp->date_str_id = sp_add_string(&pp->token_strings, str);
+    if (pp->date_str_id < 0)
+      goto err_oom;
+  }
+
+  if (pp->time_str_id < 0) {
+    snprintf(str, sizeof(str), "\"%02d:%02d:%02d\"", cur_tm->tm_hour, cur_tm->tm_min, cur_tm->tm_sec);
+    pp->time_str_id = sp_add_string(&pp->token_strings, str);
+    if (pp->time_str_id < 0)
+      goto err_oom;
+  }
+
+  return 0;
+
+ err_oom:
+  return sp_set_pp_error_at(pp, loc, "out of memory");
+}
+
+struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args, struct sp_src_loc loc)
+{
+  static char str[256];
+  
   UNUSED(args);
   
   struct sp_pp_token tok;
@@ -281,16 +342,43 @@ struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, 
     tok.type = TOK_PP_EOF;
     break;
 
-  case PP_MACRO_DATE:
-  case PP_MACRO_TIME:
-  case PP_MACRO_FILE:
   case PP_MACRO_LINE:
+    tok.type = TOK_PP_NUMBER;
+    snprintf(str, sizeof(str), "%d", loc.line);
+    tok.data.str_id = sp_add_string(&pp->token_strings, str);
+    if (tok.data.str_id < 0)
+      goto err_oom;
+    break;
+
+  case PP_MACRO_FILE:
+    tok.type = TOK_PP_STRING;
+    escape_file_name(str, sizeof(str), sp_get_ast_file_name(pp->ast, loc.file_id));
+    tok.data.str_id = sp_add_string(&pp->token_strings, str);
+    if (tok.data.str_id < 0)
+      goto err_oom;
+    break;
+
+  case PP_MACRO_DATE:
+    tok.type = TOK_PP_STRING;
+    if (get_current_datetime(pp, loc) < 0)
+      return NULL;
+    tok.data.str_id = pp->date_str_id;
+    break;
+
+  case PP_MACRO_TIME:
+    tok.type = TOK_PP_STRING;
+    if (get_current_datetime(pp, loc) < 0)
+      return NULL;
+    tok.data.str_id = pp->time_str_id;
+    break;
+    
   case PP_MACRO_STDC:
   case PP_MACRO_STDC_VERSION:
   case PP_MACRO_STDC_HOSTED:
   case PP_MACRO_STDC_MB_MIGHT_NEQ_WC:
+    // TODO: update these when we're conforming
     tok.type = TOK_PP_NUMBER;
-    tok.data.str_id = sp_add_string(&pp->token_strings, "42");
+    tok.data.str_id = sp_add_string(&pp->token_strings, "0");
     if (tok.data.str_id < 0)
       goto err_oom;
     break;
@@ -306,6 +394,6 @@ struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, 
   return list;
   
  err_oom:
-  sp_set_pp_error(pp, "out of memory");
+  sp_set_pp_error_at(pp, loc, "out of memory");
   return NULL;
 }

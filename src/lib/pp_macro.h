@@ -44,7 +44,8 @@ struct sp_macro_args {
 };
 
 int sp_add_predefined_macros(struct sp_preprocessor *pp);
-struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro, struct sp_macro_args *args);
+struct sp_pp_token_list *sp_expand_predefined_macro(struct sp_preprocessor *pp, struct sp_macro_def *macro,
+                                                    struct sp_macro_args *args, struct sp_src_loc loc);
 
 struct sp_macro_def *sp_new_macro_def(struct sp_preprocessor *pp, sp_string_id name_id,
                                       bool is_function, bool is_variadic, bool is_named_variadic,

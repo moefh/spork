@@ -19,12 +19,13 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->pool = pool;
   pp->in = NULL;
   pp->ast = NULL;
-  pp->loc = sp_make_src_loc(0,0,0);
   pp->at_newline = false;
   pp->last_was_space = false;
   pp->macro_args_reading_level = 0;
   pp->macro_expansion_level = 0;
   pp->cond_level = -1;
+  pp->date_str_id = -1;
+  pp->time_str_id = -1;
   pp->in_tokens = NULL;
   pp->init_ph6 = false;
   sp_init_idht(&pp->macros, pool);
@@ -53,15 +54,15 @@ void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, str
   pp->in = in;
   pp->in->base_cond_level = pp->cond_level;
   pp->ast = ast;
-  pp->loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
+  pp->tok_loc.pos = -1;
+  pp->last_tok_loc.pos = -1;
   pp->at_newline = true;
   pp->macro_args_reading_level = 0;
   pp->macro_expansion_level = 0;
   pp->last_was_space = false;
 }
 
-#if 0
-static int set_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char *fmt, ...)
+int sp_set_pp_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char *fmt, ...)
 {
   char str[256];
   va_list ap;
@@ -72,7 +73,6 @@ static int set_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char 
   sp_set_error(pp->prog, "%s:%d:%d: %s", sp_get_ast_file_name(pp->ast, loc.file_id), loc.line, loc.col, str);
   return -1;
 }
-#endif
 
 int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...)
 {

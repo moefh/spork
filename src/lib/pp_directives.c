@@ -45,7 +45,8 @@ static const struct pp_directive {
   ADD_PP_DIR(pragma),
 };
 
-#define set_error sp_set_pp_error
+#define set_error    sp_set_pp_error
+#define set_error_at sp_set_pp_error_at
 
 #define NEXT_TOKEN()        do { if (sp_next_pp_ph3_token(pp, false) < 0) return -1; } while (0)
 #define NEXT_HEADER_TOKEN() do { if (sp_next_pp_ph3_token(pp, true ) < 0) return -1; } while (0)
@@ -147,7 +148,7 @@ static int read_expanded_directive_args(struct sp_preprocessor *pp, bool allow_h
 /* ================================================ */
 /* == #error ====================================== */
 
-static int process_error(struct sp_preprocessor *pp)
+static int process_error(struct sp_preprocessor *pp, struct sp_src_loc loc)
 {
   // read unexpanded tokens
   struct sp_pp_token_list *args = NULL;
@@ -168,13 +169,13 @@ static int process_error(struct sp_preprocessor *pp)
     str_len += s_len;
   }
   str[str_len] = '\0';
-  return set_error(pp, "#error %s", str);
+  return set_error_at(pp, loc, "#error %s", str);
 }
 
 /* ================================================ */
 /* == #include ==================================== */
 
-static int process_include(struct sp_preprocessor *pp)
+static int process_include(struct sp_preprocessor *pp, struct sp_src_loc loc)
 {
   struct sp_pp_token_list *args = NULL;
   if (read_expanded_directive_args(pp, true, &args) < 0)
@@ -203,9 +204,9 @@ static int process_include(struct sp_preprocessor *pp)
   char filename[256];
   size_t include_filename_len = strlen(include_file);
   if (include_filename_len < 2)
-    return set_error(pp, "invalid filename");
+    return set_error_at(pp, loc, "invalid filename");
   if (include_filename_len > sizeof(filename)+1)
-    return set_error(pp, "filename too long");
+    return set_error_at(pp, loc, "filename too long");
   memcpy(filename, include_file+1, include_filename_len-2);
   filename[include_filename_len-2] = '\0';
   //bool is_system_header = (include_file[0] == '<');
@@ -214,10 +215,10 @@ static int process_include(struct sp_preprocessor *pp)
   const char *base_filename = sp_get_ast_file_name(pp->ast, sp_get_input_file_id(pp->in));
   sp_string_id file_id = sp_add_ast_file_name(pp->ast, filename);
   if (file_id < 0)
-    return set_error(pp, "out of memory");
+    return set_error_at(pp, loc, "out of memory");
   struct sp_input *in = sp_new_input_from_file(filename, (uint16_t) file_id, base_filename);
   if (! in)
-    return 0; //set_error(pp, "can't open '%s'", filename);
+    return 0; //return set_error_at(pp, loc, "can't open '%s'", filename);
   in->base_cond_level = pp->cond_level;
   in->next = pp->in;
   pp->in = in;
@@ -228,13 +229,13 @@ static int process_include(struct sp_preprocessor *pp)
 /* ================================================ */
 /* == #define / #undef ============================ */
 
-static int process_undef(struct sp_preprocessor *pp)
+static int process_undef(struct sp_preprocessor *pp, struct sp_src_loc loc)
 {
   NEXT_TOKEN();
   if (IS_SPACE())
     NEXT_TOKEN();
   if (IS_NEWLINE())
-    return set_error(pp, "macro name required");
+    return set_error_at(pp, loc, "macro name required");
   
   if (! IS_IDENTIFIER())
     return set_error(pp, "macro name must be an identifier, found '%s'", sp_dump_pp_token(pp, &pp->tok));
@@ -328,7 +329,7 @@ static int read_macro_body(struct sp_preprocessor *pp, struct sp_pp_token_list *
   return 0;
 }
 
-static int process_define(struct sp_preprocessor *pp)
+static int process_define(struct sp_preprocessor *pp, struct sp_src_loc loc)
 {
   do {
     NEXT_TOKEN();
@@ -337,7 +338,7 @@ static int process_define(struct sp_preprocessor *pp)
     return set_error(pp, "macro name required");
   
   if (! IS_IDENTIFIER())
-    return set_error(pp, "macro name must be an identifier, found '%s'", sp_dump_pp_token(pp, &pp->tok));
+    return set_error_at(pp, loc, "macro name must be an identifier, found '%s'", sp_dump_pp_token(pp, &pp->tok));
   
   sp_string_id macro_name_id = sp_get_pp_token_string_id(&pp->tok);
   bool is_function = sp_next_pp_ph3_char_is_lparen(pp);
@@ -366,12 +367,12 @@ static int process_define(struct sp_preprocessor *pp)
   struct sp_macro_def *old_macro = sp_get_idht_value(&pp->macros, macro_name_id);
   if (old_macro) {
     if (! sp_macros_are_equal(macro, old_macro))
-      return set_error(pp, "redefinition of macro '%s'", sp_get_string(&pp->token_strings, macro_name_id));
+      return set_error_at(pp, loc, "redefinition of macro '%s'", sp_get_string(&pp->token_strings, macro_name_id));
     return 0;
   }
   
   if (sp_add_idht_entry(&pp->macros, macro_name_id, macro) < 0)
-    return set_error(pp, "out of memory");
+    return set_error_at(pp, loc, "out of memory");
   return 0;
 }
 
@@ -637,6 +638,7 @@ int sp_process_pp_directive(struct sp_preprocessor *pp)
     goto err;
   }
 
+  struct sp_src_loc loc = pp->tok.loc;
   const char *directive_name = sp_get_pp_token_string(pp, &pp->tok);
   enum pp_directive_type directive;
   if (! find_pp_directive(directive_name, &directive)) {
@@ -662,10 +664,10 @@ int sp_process_pp_directive(struct sp_preprocessor *pp)
     return 0;
   
   switch (directive) {
-  case PP_DIR_include: return process_include(pp);
-  case PP_DIR_define:  return process_define(pp);
-  case PP_DIR_undef:   return process_undef(pp);
-  case PP_DIR_error:   return process_error(pp);
+  case PP_DIR_include: return process_include(pp, loc);
+  case PP_DIR_define:  return process_define(pp, loc);
+  case PP_DIR_undef:   return process_undef(pp, loc);
+  case PP_DIR_error:   return process_error(pp, loc);
 
   case PP_DIR_line:
   case PP_DIR_pragma:

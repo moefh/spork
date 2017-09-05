@@ -23,6 +23,11 @@ enum sp_pp_cond_state {
   PP_COND_DONE,      // waiting for #endif
 };
 
+struct sp_pp_file_location {
+  struct sp_src_loc loc;
+  size_t pos;
+};
+
 struct sp_preprocessor {
   struct sp_program *prog;
   struct sp_ast *ast;
@@ -38,9 +43,13 @@ struct sp_preprocessor {
   struct sp_buffer tmp_buf;
   struct sp_id_hashtable macros;
 
+  sp_string_id date_str_id;
+  sp_string_id time_str_id;
+
   // phase 3:
+  struct sp_pp_file_location tok_loc;
+  struct sp_pp_file_location last_tok_loc;
   struct sp_pp_token tok;
-  struct sp_src_loc loc;
 
   // phase 4:
   int macro_args_reading_level;
@@ -60,6 +69,7 @@ struct sp_preprocessor {
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
 void sp_destroy_preprocessor(struct sp_preprocessor *pp);
 int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...) SP_PRINTF_FORMAT(2,3);
+int sp_set_pp_error_at(struct sp_preprocessor *pp, struct sp_src_loc, char *fmt, ...) SP_PRINTF_FORMAT(3,4);
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
 void sp_dump_macros(struct sp_preprocessor *pp);
 

@@ -46,7 +46,7 @@ static bool skip_bs_newline(struct sp_input *in)
   //printf("=== skip_bs_newline ===\n");
   bool skipped = false;
   while (CUR == '\\') {
-    int rewind_pos = CUR_POS;
+    size_t rewind_pos = CUR_POS;
     ADVANCE();
     while (IS_SPACE(CUR) && CUR != '\n')
       ADVANCE();
@@ -82,7 +82,7 @@ static bool skip_comments(struct sp_input *in, int *err)
   
   while (CUR == '/') {
     if (NEXT == '\\') {
-      int rewind_pos = CUR_POS;
+      size_t rewind_pos = CUR_POS;
       ADVANCE();
       if (! skip_bs_newline(in) || (CUR != '/' && CUR != '*')) {
         SET_POS(rewind_pos);
@@ -339,7 +339,7 @@ static int read_number(struct sp_input *in, struct sp_buffer *buf)
     // [eEpP][+-]
     if (CUR == 'e' || CUR == 'E' || CUR == 'p' || CUR == 'P') {
       char exp = CUR;
-      int rewind_pos = CUR_POS;
+      size_t rewind_pos = CUR_POS;
       ADVANCE();
       if (CUR == '\\' && ! skip_bs_newline(in)) {
         SET_POS(rewind_pos);
@@ -388,7 +388,7 @@ static int read_ident(struct sp_input *in, struct sp_buffer *buf)
   return TOK_PP_IDENTIFIER;
 }
 
-static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool parse_header)
+static int read_token(struct sp_input *in, struct sp_buffer *buf, size_t *pos, bool parse_header)
 {
   int err = 0;
   
@@ -538,7 +538,7 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, int *pos, bool
 
 static bool next_char_is_lparen(struct sp_input *in)
 {
-  int rewind_pos = CUR_POS;
+  size_t rewind_pos = CUR_POS;
   if (CUR == '\\')
     skip_bs_newline(in);
   if (CUR == '(') {
@@ -554,9 +554,48 @@ bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp)
   return next_char_is_lparen(pp->in);
 }
 
+static void get_input_location(struct sp_preprocessor *pp, size_t pos, struct sp_src_loc *loc)
+{
+  size_t start_pos;
+  uint16_t cur_file_id = sp_get_input_file_id(pp->in);
+
+  // start from last known position if possible
+  if (pp->tok_loc.pos != (size_t) -1 && pp->tok_loc.loc.file_id == cur_file_id && pp->tok_loc.pos <= pos) {
+    //printf("<cur %zu>", pos - pp->tok_loc.pos);
+    start_pos = pp->tok_loc.pos;
+    *loc = pp->tok_loc.loc;
+  } else if (pp->last_tok_loc.pos != (size_t) -1 && pp->last_tok_loc.loc.file_id == cur_file_id && pp->last_tok_loc.pos <= pos) {
+    //printf("<last %zu>", pos - pp->last_tok_loc.pos);
+    start_pos = pp->last_tok_loc.pos;
+    *loc = pp->last_tok_loc.loc;
+  } else {
+    //printf("\n\n*********** starting from beginning ***************\n\n");
+    start_pos = 0;
+    loc->file_id = cur_file_id;
+    loc->line = 1;
+    loc->col = 1;
+  }
+
+  // advance to requested position
+  if (pos > pp->in->size)
+    pos = pp->in->size;
+  for (size_t p = start_pos; p < pos; p++) {
+    if (pp->in->data[p] == '\n') {
+      loc->line++;
+      loc->col = 1;
+    } else
+      loc->col++;
+  }
+
+  // save current position as last known position
+  pp->last_tok_loc = pp->tok_loc;
+  pp->tok_loc.pos = pos;
+  pp->tok_loc.loc = *loc;
+}
+
 static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool parse_header)
 {
-  int pos;
+  size_t pos = 0;
   int type = read_token(pp->in, &pp->tmp_buf, &pos, parse_header);
 
   // error
@@ -573,8 +612,7 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
     return set_error(pp, "internal error");
   }
 
-  // TODO: set location based on 'pos'
-  tok->loc = sp_make_src_loc(sp_get_input_file_id(pp->in),0,0);
+  get_input_location(pp, pos, &tok->loc);
   tok->macro_dead = false;
 
   // EOF

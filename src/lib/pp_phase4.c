@@ -797,7 +797,7 @@ int sp_next_pp_ph4_processed_token(struct sp_preprocessor *pp, bool expand_macro
             }
             if (macro->pre_id != PP_MACRO_NOT_PREDEFINED) {
               //printf("<expanding predefined macro %s>", sp_get_macro_name(macro, pp));
-              macro_exp = sp_expand_predefined_macro(pp, macro, args);
+              macro_exp = sp_expand_predefined_macro(pp, macro, args, ident.loc);
             } else {
               //printf("<expanding macro %s>", sp_get_macro_name(macro, pp));
               macro_exp = expand_macro(pp, macro, args);
