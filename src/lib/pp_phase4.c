@@ -15,8 +15,6 @@
 #include "punct.h"
 
 #define set_error sp_set_pp_error
-static int add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
-static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 
 #define NEXT_TOKEN()        do { if (sp_next_pp_ph3_token(pp, false) < 0) return -1; } while (0)
 #define NEXT_HEADER_TOKEN() do { if (sp_next_pp_ph3_token(pp, true ) < 0) return -1; } while (0)
@@ -24,7 +22,7 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 #define IS_TOK_TYPE(t)         (pp->tok.type == t)
 #define IS_EOF()               IS_TOK_TYPE(TOK_PP_EOF)
 #define IS_ENABLE_MACRO()      IS_TOK_TYPE(TOK_PP_ENABLE_MACRO)
-#define IS_END_OF_ARG()        IS_TOK_TYPE(TOK_PP_END_OF_ARG)
+#define IS_END_OF_LIST()       IS_TOK_TYPE(TOK_PP_END_OF_LIST)
 #define IS_SPACE()             IS_TOK_TYPE(TOK_PP_SPACE)
 #define IS_NEWLINE()           IS_TOK_TYPE(TOK_PP_NEWLINE)
 #define IS_PP_HEADER_NAME()    IS_TOK_TYPE(TOK_PP_HEADER_NAME)
@@ -37,7 +35,7 @@ static int token_to_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, 
   switch (tok->type) {
   case TOK_PP_EOF:
   case TOK_PP_ENABLE_MACRO:
-  case TOK_PP_END_OF_ARG:
+  case TOK_PP_END_OF_LIST:
   case TOK_PP_NEWLINE:
   case TOK_PP_SPACE:
   case TOK_PP_PASTE_MARKER:
@@ -170,7 +168,7 @@ static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *l
       break;
 
     case TOK_PP_ENABLE_MACRO:
-    case TOK_PP_END_OF_ARG:
+    case TOK_PP_END_OF_LIST:
       break;
 
     case TOK_PP_NEWLINE:
@@ -219,11 +217,10 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   //printf("READING %d MACRO ARGS FOR '%s'\n", macro->n_params, sp_get_macro_name(macro, pp));
 
   do {
-    if (next_processed_token(pp, false) < 0)
+    if (sp_next_pp_ph4_processed_token(pp, false) < 0)
       return NULL;
   } while (IS_SPACE());
   if (! IS_PUNCT('(')) {
-    abort();
     set_error(pp, "expected '(', found '%s'", sp_dump_pp_token(pp, &pp->tok));
     goto err;
   }
@@ -233,7 +230,7 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   while (true) {
     // skip initial spaces and newlines
     do {
-      if (next_processed_token(pp, false) < 0)
+      if (sp_next_pp_ph4_processed_token(pp, false) < 0)
         goto err;
       if (! arg_start)
         break;
@@ -274,6 +271,10 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
       }
       add_index = args->cap-1;
     }
+    if (pp->tok.type == TOK_PP_END_OF_LIST) {
+      set_error(pp, "unterminated argument list for macro '%s'", sp_get_macro_name(macro, pp));
+      goto err;
+    }
     if (sp_append_pp_token(&args->args[add_index], &pp->tok) < 0)
       goto err_oom;
   }
@@ -293,9 +294,9 @@ static struct sp_macro_args *read_macro_args(struct sp_preprocessor *pp, struct 
   // adjust stored number of args
   args->len = macro->n_params;
 
-  // append end-of-arg marker to each arg
+  // append end-of-list marker to each arg
   for (int i = 0; i < args->len; i++) {
-    struct sp_pp_token eoa = ((struct sp_pp_token) { .type = TOK_PP_END_OF_ARG });
+    struct sp_pp_token eoa = ((struct sp_pp_token) { .type = TOK_PP_END_OF_LIST });
     if (sp_append_pp_token(&args->args[i], &eoa) < 0)
       goto err_oom;
   }
@@ -316,13 +317,13 @@ static struct sp_pp_token_list *expand_arg(struct sp_preprocessor *pp, struct sp
     goto err_oom;
 
   //printf("ARG NEXT: %p\n", (void*) arg->next);
-  if (add_pp_token_list_to_input(pp, arg) < 0)
+  if (sp_add_pp_token_list_to_ph4_input(pp, arg) < 0)
     goto err;
   while (true) {
-    if (next_processed_token(pp, true) < 0)
+    if (sp_next_pp_ph4_processed_token(pp, true) < 0)
       return NULL;
     //printf("[arg] %s\n", sp_dump_pp_token(pp, &pp->tok));
-    if (IS_END_OF_ARG())
+    if (IS_END_OF_LIST())
       break;
     if (IS_EOF()) {
       set_error(pp, "end-of-file found while reading macro args");
@@ -352,7 +353,7 @@ static int append_arg_to_list(struct sp_pp_token_list *list, struct sp_pp_token_
   struct sp_pp_token_list_walker w;
   struct sp_pp_token *t = sp_rewind_pp_token_list(&w, arg);
   while (sp_read_pp_token_from_list(&w, &t)) {
-    if (pp_tok_is_end_of_arg(t))
+    if (pp_tok_is_end_of_list(t))
       break;
     if (sp_append_pp_token(list, t) < 0)
       return -1;
@@ -365,7 +366,7 @@ static int append_list_to_list(struct sp_pp_token_list *dest, struct sp_pp_token
   struct sp_pp_token_list_walker w;
   struct sp_pp_token *t = sp_rewind_pp_token_list(&w, src);
   while (sp_read_pp_token_from_list(&w, &t)) {
-    if (pp_tok_is_end_of_arg(t))
+    if (pp_tok_is_end_of_list(t))
       break;
     if (sp_append_pp_token(dest, t) < 0)
       return -1;
@@ -583,9 +584,9 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
     if (pp_tok_is_identifier(t) && t->data.str_id == macro->name_id)
       t->macro_dead = true;
   }
-    
+  
   // add marker to re-enable macro:
-  struct sp_pp_token enable_macro;
+  struct sp_pp_token enable_macro = pp->tok;
   enable_macro.type = TOK_PP_ENABLE_MACRO;
   enable_macro.data.str_id = macro->name_id;
   if (sp_append_pp_token(out, &enable_macro) < 0)
@@ -616,7 +617,7 @@ void dump_input_buffer(struct sp_preprocessor *pp)
   }
 }
 
-static int add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list)
+int sp_add_pp_token_list_to_ph4_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list)
 {
   struct sp_pp_token_list_walker *w = sp_new_pp_token_list_walker(&pp->macro_exp_pool, list);
   if (! w)
@@ -627,7 +628,6 @@ static int add_pp_token_list_to_input(struct sp_preprocessor *pp, struct sp_pp_t
     printf("ERROR: adding input buffer to input buffer! input buffer contains:\n");
     sp_dump_pp_token_list(list, pp);
     printf("\n\n");
-    abort();
   }
 #endif
 #if 0
@@ -704,7 +704,7 @@ static bool next_token_from_buffer(struct sp_preprocessor *pp)
   return false;
 }
 
-static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
+int sp_next_pp_ph4_processed_token(struct sp_preprocessor *pp, bool expand_macros)
 {
   while (true) {
     if (! next_token_from_buffer(pp))
@@ -740,7 +740,7 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
 
     if (IS_EOF()) {
       if (pp->macro_args_reading_level)
-        return set_error(pp, "unterminated macro argument list");
+        return set_error(pp, "unterminated argument list for macro");
       if (! pp->in->next)
         return 0;
       struct sp_input *next = pp->in->next;
@@ -802,7 +802,7 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
             }
             if (! macro_exp)
               return -1;
-            if (add_pp_token_list_to_input(pp, macro_exp) < 0)
+            if (sp_add_pp_token_list_to_ph4_input(pp, macro_exp) < 0)
               return -1;
             pp->macro_expansion_level--;
             continue;
@@ -819,5 +819,15 @@ static int next_processed_token(struct sp_preprocessor *pp, bool expand_macros)
 
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp)
 {
-  return next_processed_token(pp, true);
+  do {
+    if (sp_next_pp_ph4_processed_token(pp, true) < 0)
+      return -1;
+    if (IS_EOF())
+      break;
+  } while (pp->cond_level >= 0 && pp->cond_state[pp->cond_level] != PP_COND_ACTIVE);
+
+  if (pp->cond_level >= 0 && pp->cond_state[pp->cond_level] != PP_COND_ACTIVE)
+    return set_error(pp, "unterminated preprocessing conditional");
+  
+  return 0;
 }

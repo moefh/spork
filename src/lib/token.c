@@ -90,9 +90,9 @@ const char *sp_dump_token(struct sp_token *tok, struct sp_string_table *tab)
 
 #if 1
 #define MARK_COLOR(x)     "\x1b[31m" x "\x1b[0m"
-#define KEYWORD_COLOR(x)  "\x1b[1;31m" x "\x1b[0m"
+#define KEYWORD_COLOR(x)  "\x1b[1;36m" x "\x1b[0m"
 #define IDENT_COLOR(x)    "\x1b[1;37m" x "\x1b[0m"
-#define PUNCT_COLOR(x)    "\x1b[1;36m" x "\x1b[0m"
+#define PUNCT_COLOR(x)    "\x1b[1;34m" x "\x1b[0m"
 #define NUMBER_COLOR(x)   "\x1b[1;32m" x "\x1b[0m"
 #else
 #define MARK_COLOR(x)     x
@@ -104,7 +104,7 @@ const char *sp_dump_token(struct sp_token *tok, struct sp_string_table *tab)
   
   switch (tok->type) {
   case TOK_EOF:
-    snprintf(str, sizeof(str), PUNCT_COLOR("<eof>"));
+    snprintf(str, sizeof(str), MARK_COLOR("<eof>"));
     return str;
     
   case TOK_PUNCT:

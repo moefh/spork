@@ -199,7 +199,7 @@ bool sp_macro_arg_is_empty(struct sp_pp_token_list *arg)
   struct sp_pp_token_list_walker w;
   struct sp_pp_token *a = sp_rewind_pp_token_list(&w, arg);
   while (sp_read_pp_token_from_list(&w, &a)) {
-    if (! pp_tok_is_end_of_arg(a))
+    if (! pp_tok_is_end_of_list(a))
       return false;
   }
   return true;

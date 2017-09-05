@@ -248,7 +248,7 @@ static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, st
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
   case TOK_PP_ENABLE_MACRO:
-  case TOK_PP_END_OF_ARG:
+  case TOK_PP_END_OF_LIST:
   case TOK_PP_PASTE_MARKER:
   case TOK_PP_HEADER_NAME:
   case TOK_PP_CHAR_CONST:

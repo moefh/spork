@@ -8,7 +8,7 @@ enum sp_pp_token_type {
   TOK_PP_SPACE,
   TOK_PP_NEWLINE,
   TOK_PP_ENABLE_MACRO,
-  TOK_PP_END_OF_ARG,
+  TOK_PP_END_OF_LIST,
   TOK_PP_PASTE_MARKER,
   
   TOK_PP_HEADER_NAME,
@@ -41,7 +41,7 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
 bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2);
 
 #define pp_tok_is_eof(tok)          ((tok)->type == TOK_PP_EOF)
-#define pp_tok_is_end_of_arg(tok)   ((tok)->type == TOK_PP_END_OF_ARG)
+#define pp_tok_is_end_of_list(tok)  ((tok)->type == TOK_PP_END_OF_LIST)
 #define pp_tok_is_paste_marker(tok) ((tok)->type == TOK_PP_PASTE_MARKER)
 #define pp_tok_is_enable_macro(tok) ((tok)->type == TOK_PP_ENABLE_MACRO)
 #define pp_tok_is_newline(tok)      ((tok)->type == TOK_PP_NEWLINE)

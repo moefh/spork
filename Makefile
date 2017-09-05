@@ -24,7 +24,7 @@ ubsan:
 	$(MAKE) build TARGET_CFLAGS="-O1 -g -fsanitize=undefined" TARGET_LDFLAGS="-fsanitize=undefined"
 
 clean:
-	rm -f *~
+	rm -f *~ core
 	$(MAKE) -C src clean
 
 build:

@@ -8,6 +8,7 @@
 struct sp_input {
   struct sp_input *next;
   uint16_t file_id;
+  int base_cond_level;
   int size;
   int pos;
   unsigned char data[];

@@ -15,6 +15,14 @@
 struct sp_ast;
 struct sp_token;
 
+#define PP_MAX_COND_NESTING 64  /* [5.2.4.1] says we need at least 63 */
+
+enum sp_pp_cond_state {
+  PP_COND_ACTIVE,    // inside active conditional
+  PP_COND_INACTIVE,  // inside failed conditional
+  PP_COND_DONE,      // waiting for #endif
+};
+
 struct sp_preprocessor {
   struct sp_program *prog;
   struct sp_ast *ast;
@@ -24,6 +32,7 @@ struct sp_preprocessor {
 
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
+  struct sp_mem_pool cond_directive_pool;
   struct sp_string_table token_strings;
   
   struct sp_buffer tmp_buf;
@@ -38,6 +47,8 @@ struct sp_preprocessor {
   int macro_expansion_level;
   bool last_was_space;
   bool at_newline;
+  enum sp_pp_cond_state cond_state[PP_MAX_COND_NESTING];
+  int cond_level;
 
   // phase 6:
   bool init_ph6;
@@ -58,7 +69,9 @@ bool sp_next_pp_ph3_char_is_lparen(struct sp_preprocessor *pp);
 int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp_pp_token *ret);
 
 int sp_process_pp_directive(struct sp_preprocessor *pp);
+int sp_next_pp_ph4_processed_token(struct sp_preprocessor *pp, bool expand_macros);
 int sp_next_pp_ph4_token(struct sp_preprocessor *pp);
+int sp_add_pp_token_list_to_ph4_input(struct sp_preprocessor *pp, struct sp_pp_token_list *list);
 
 int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok);
 int sp_next_token(struct sp_preprocessor *pp, struct sp_token *tok);

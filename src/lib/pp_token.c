@@ -28,7 +28,7 @@ bool sp_pp_tokens_are_equal(struct sp_pp_token *t1, struct sp_pp_token *t2)
   case TOK_PP_EOF:
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
-  case TOK_PP_END_OF_ARG:
+  case TOK_PP_END_OF_LIST:
   case TOK_PP_PASTE_MARKER:
     return true;
 
@@ -73,8 +73,8 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     snprintf(str, sizeof(str), MARK_COLOR("<end-of-file>"));
     return str;
 
-  case TOK_PP_END_OF_ARG:
-    snprintf(str, sizeof(str), MARK_COLOR("<end-of-arg>"));
+  case TOK_PP_END_OF_LIST:
+    snprintf(str, sizeof(str), MARK_COLOR("<end-of-list>"));
     return str;
 
   case TOK_PP_PASTE_MARKER:
@@ -82,7 +82,7 @@ const char *sp_dump_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok
     return str;
 
   case TOK_PP_ENABLE_MACRO:
-    snprintf(str, sizeof(str), MARK_COLOR("<enable-macro '%s'>"), sp_get_pp_token_string(pp, tok));
+    snprintf(str, sizeof(str), MARK_COLOR("<enable-macro '%s' (%d)>"), sp_get_pp_token_string(pp, tok), tok->data.str_id);
     return str;
 
   case TOK_PP_NEWLINE:

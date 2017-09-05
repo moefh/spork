@@ -24,6 +24,7 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->last_was_space = false;
   pp->macro_args_reading_level = 0;
   pp->macro_expansion_level = 0;
+  pp->cond_level = -1;
   pp->in_tokens = NULL;
   pp->init_ph6 = false;
   sp_init_idht(&pp->macros, pool);
@@ -31,6 +32,7 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   sp_init_buffer(&pp->tmp_buf, pool);
   sp_init_buffer(&pp->tmp_str_buf, pool);
   sp_init_mem_pool(&pp->macro_exp_pool);
+  sp_init_mem_pool(&pp->cond_directive_pool);
 
   sp_add_predefined_macros(pp);
 }
@@ -42,12 +44,14 @@ void sp_destroy_preprocessor(struct sp_preprocessor *pp)
     sp_free_input(pp->in);
     pp->in = next;
   }
+  sp_destroy_mem_pool(&pp->cond_directive_pool);
   sp_destroy_mem_pool(&pp->macro_exp_pool);
 }
 
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast)
 {
   pp->in = in;
+  pp->in->base_cond_level = pp->cond_level;
   pp->ast = ast;
   pp->loc = sp_make_src_loc(sp_get_input_file_id(in), 1, 0);
   pp->at_newline = true;
@@ -101,6 +105,8 @@ void sp_dump_macros(struct sp_preprocessor *pp)
 
 int sp_next_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok)
 {
+  // We consider "preprocessing" to stop at phase 4; phases 5-6 are
+  // done when we need to read tokens instead of pp_tokens.
   if (sp_next_pp_ph4_token(pp) < 0)
     return -1;
   *tok = pp->tok;
