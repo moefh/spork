@@ -12,6 +12,7 @@ enum sp_token_type {
   TOK_PUNCT,
   TOK_INT_CONST,
   TOK_FLOAT_CONST,
+  TOK_CHAR_CONST,
 };
 
 enum sp_keyword_type {
@@ -74,6 +75,10 @@ struct sp_token {
       double n;
       uint8_t flags;  // TOK_FLOAT_FLAG_xxx
     } float_const;
+    struct {
+      int32_t ch;
+      bool is_wide;
+    } char_const;
     int punct_id;
   } data;
 };

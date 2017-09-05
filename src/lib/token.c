@@ -131,6 +131,31 @@ const char *sp_dump_token(struct sp_token *tok, struct sp_string_table *tab)
     if (tok->data.int_const.flags & TOK_INT_CONST_FLAG_L)
       strcat(str, NUMBER_COLOR("L"));
     return str;
+
+  case TOK_CHAR_CONST:
+    if (tok->data.char_const.ch == '\\' || tok->data.char_const.ch == '\'') {
+      snprintf(str, sizeof(str), NUMBER_COLOR("%s'\\%c'"), (tok->data.char_const.is_wide) ? "L" : "", (int) tok->data.char_const.ch);
+    } else if (tok->data.char_const.ch >= 32 && tok->data.char_const.ch < 127)
+      snprintf(str, sizeof(str), NUMBER_COLOR("%s'%c'"), (tok->data.char_const.is_wide) ? "L" : "", (int) tok->data.char_const.ch);
+    else if (tok->data.char_const.ch == 0) {
+      snprintf(str, sizeof(str), NUMBER_COLOR("%s'\\0'"), (tok->data.char_const.is_wide) ? "L" : "");
+    } else {
+      size_t len = 0;
+      snprintf(str + len, sizeof(str) - len, NUMBER_COLOR("%s'\\x"), (tok->data.char_const.is_wide) ? "L" : "");
+      len += strlen(str + len);
+      int size = 7;
+      uint32_t v = tok->data.char_const.ch;
+      while (size > 0 && (0xf & (v >> (4*size))) == 0)
+        size--;
+      if (size < 2)
+        size = 1;
+      for (int i = size; i >= 0; i--) {
+        snprintf(str + len, sizeof(str) - len, NUMBER_COLOR("%x"), 0xf & (v>>(4*i)));
+        len += strlen(str + len);
+      }
+      snprintf(str + len, sizeof(str) - len, NUMBER_COLOR("'"));
+    }
+    return str;
     
   case TOK_STRING:
     {

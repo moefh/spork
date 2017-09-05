@@ -12,7 +12,8 @@
 #include "pp_token.h"
 #include "token.h"
 
-#define set_error sp_set_pp_error
+#define set_error    sp_set_pp_error
+#define set_error_at sp_set_pp_error_at
 
 #define NEXT_TOKEN() do { if (next_token(pp) < 0) return -1; } while (0)
 #define CUR  (&pp->tok_ph6)
@@ -54,6 +55,45 @@ static int get_escape_char(char ch)
   return -1;
 }
 
+static int32_t get_oct_escape_char(const char **p)
+{
+  const char *cur = *p;
+
+  uint32_t ret = 0;
+  while (*cur >= '0' && *cur <= '9') {
+    ret = (ret<<3) | (uint32_t) (*cur-'0');
+    cur++;
+  }
+  *p = cur;
+  if (ret > INT32_MAX)
+    return -1;
+  return ret;
+}
+
+static int32_t get_hex_escape_char(const char **p)
+{
+  uint32_t ret = 0;
+  const char *cur = *p;
+  while (true) {
+    if (*cur >= '0' && *cur <= '9') {
+      //printf("[0-9]: %d\n", (*cur-'0'));
+      ret = (ret<<4) | (uint32_t) (*cur-'0');
+    } else if (*cur >= 'A' && *cur <= 'F') {
+      //printf("[A-F]: %d\n", (*cur-'A') + 10);
+      ret = (ret<<4) | ((uint32_t) (*cur-'A') + 10);
+    } else if (*cur >= 'a' && *cur <= 'f') {
+      //printf("[a-f]: %d\n", (*cur-'a') + 10);
+      ret = (ret<<4) | ((uint32_t) (*cur-'a') + 10);
+    } else
+      break;
+    cur++;
+  }
+  if (ret > INT32_MAX)
+    return -1;
+  *p = cur;
+  return (int32_t) ret;
+}
+
 static int conv_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, struct sp_buffer *buf, bool *is_wide)
 {
   const char *str = sp_get_pp_token_string(pp, tok);
@@ -68,12 +108,21 @@ static int conv_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, stru
   
   while (*cur != '"') {
     if (*cur == '\\') {
-      int escape_char = get_escape_char(*++cur);
-      if (escape_char < 0)
-        return set_error(pp, "invalid escape sequence: '\\%c'", *cur);
-      if (sp_buf_add_byte(buf, escape_char) < 0)
-        goto err_oom;
       cur++;
+      int32_t val;
+
+      if (*cur == '0') {
+        val = get_oct_escape_char(&cur);
+      } else if (*cur == 'x') {
+        cur++;
+        val = get_hex_escape_char(&cur);
+      } else {
+        val = get_escape_char(*cur++);
+      }
+      if (val < 0)
+        goto err_invalid;
+      if (sp_buf_add_byte(buf, val) < 0)
+        goto err_oom;
     } else {
       if (sp_buf_add_byte(buf, *cur++) < 0)
         goto err_oom;
@@ -82,7 +131,10 @@ static int conv_string(struct sp_preprocessor *pp, struct sp_pp_token *tok, stru
   return 0;
 
  err_oom:
-  return set_error(pp, "out of memory");
+  return set_error_at(pp, tok->loc, "out of memory");
+
+ err_invalid:
+  return set_error_at(pp, tok->loc, "invalid escape sequence");
 }
 
 static uint64_t read_int_const_num(struct sp_preprocessor *pp, const char *str, const char **end, int base)
@@ -225,6 +277,53 @@ static int conv_number(struct sp_preprocessor *pp, struct sp_pp_token *tok, stru
   return 0;
 }
 
+static int conv_char_const(struct sp_preprocessor *pp, struct sp_pp_token *tok, struct sp_token *ret)
+{
+  const char *str = sp_get_pp_token_string(pp, tok);
+  const char *cur = str;
+
+  bool is_wide = false;
+  if (*cur == 'L') {
+    is_wide = true;
+    cur++;
+  }
+  cur++;
+
+  int32_t ch_val = 0;
+  int shift = 0;
+  while (*cur != '\'') {
+    if (*cur == '\\') {
+      cur++;
+
+      int32_t val;
+      if (*cur == '0') {
+        val = get_oct_escape_char(&cur);
+      } else if (*cur == 'x' || *cur == 'u' || *cur == 'U') {
+        cur++;
+        val = get_hex_escape_char(&cur);
+      } else {
+        val = get_escape_char(*cur++);
+      }
+      if (val < 0)
+        goto err_invalid;
+
+      ch_val |= (int32_t) val << shift;
+    } else {
+      ch_val |= (int32_t) *cur << shift;
+      cur++;
+    }
+    shift += 8;
+  }
+
+  ret->type = TOK_CHAR_CONST;
+  ret->data.char_const.ch = ch_val;
+  ret->data.char_const.is_wide = is_wide;
+  return 0;
+
+ err_invalid:
+  return set_error_at(pp, tok->loc, "invalid escape sequence in %s", sp_dump_pp_token(pp, tok));
+}
+
 static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, struct sp_token *ret)
 {
   switch (tok->type) {
@@ -245,13 +344,15 @@ static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, st
   case TOK_PP_NUMBER:
     return conv_number(pp, tok, ret);
 
+  case TOK_PP_CHAR_CONST:
+    return conv_char_const(pp, tok, ret);
+
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
   case TOK_PP_ENABLE_MACRO:
   case TOK_PP_END_OF_LIST:
   case TOK_PP_PASTE_MARKER:
   case TOK_PP_HEADER_NAME:
-  case TOK_PP_CHAR_CONST:
   case TOK_PP_STRING:
   case TOK_PP_OTHER:
     return set_error(pp, "can't convert preprocessing token of type %d: '%s'", tok->type, sp_dump_pp_token(pp, tok));
