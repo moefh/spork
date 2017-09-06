@@ -24,6 +24,4 @@ void sp_dump_string(const char *str);
 void sp_dump_char(char c);
 void dump_mem(const void *data, size_t len);
 
-void sp_init_program(struct sp_program *prog);
-
 #endif /* INTERNAL_H_FILE */

@@ -14,6 +14,7 @@
 
 struct sp_ast;
 struct sp_token;
+struct sp_compiler;
 
 #define PP_MAX_COND_NESTING 64  /* [5.2.4.1] says we need at least 63 */
 
@@ -30,16 +31,12 @@ struct sp_pp_file_location {
 
 struct sp_preprocessor {
   struct sp_program *prog;
+  struct sp_compiler *comp;
   struct sp_ast *ast;
 
   struct sp_input *in;
   struct sp_pp_token_list_walker *in_tokens;
 
-  const char **sys_include_search_path;
-  size_t sys_include_search_path_len;
-  const char **user_include_search_path;
-  size_t user_include_search_path_len;
-  
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
   struct sp_mem_pool directive_pool;
@@ -71,12 +68,13 @@ struct sp_preprocessor {
   struct sp_pp_token next_ph6;
 };
 
-void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);
+void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_compiler *comp, struct sp_mem_pool *pool);
 void sp_destroy_preprocessor(struct sp_preprocessor *pp);
 int sp_set_pp_error(struct sp_preprocessor *pp, char *fmt, ...) SP_PRINTF_FORMAT(2,3);
 int sp_set_pp_error_at(struct sp_preprocessor *pp, struct sp_src_loc, char *fmt, ...) SP_PRINTF_FORMAT(3,4);
-void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast);
+int sp_set_preprocessor_io(struct sp_preprocessor *pp, const char *filename, struct sp_ast *ast);
 void sp_dump_macros(struct sp_preprocessor *pp);
+int sp_add_preprocessor_search_dir(struct sp_preprocessor *pp, const char *dir, bool is_system);
 
 int sp_peek_nonblank_pp_ph3_token(struct sp_preprocessor *pp, struct sp_pp_token *next, bool parse_header);
 int sp_next_pp_ph3_token(struct sp_preprocessor *pp, bool parse_header);

@@ -18,11 +18,13 @@ struct sp_program *sp_new_program(void)
     return NULL;
   prog->last_error_msg[0] = '\0';
   sp_init_string_table(&prog->src_file_names, NULL);
+  sp_init_compiler(&prog->comp, prog);
   return prog;
 }
 
 void sp_free_program(struct sp_program *prog)
 {
+  sp_destroy_compiler(&prog->comp);
   sp_destroy_string_table(&prog->src_file_names);
   free(prog);
 }
@@ -41,121 +43,34 @@ int sp_set_error(struct sp_program *prog, const char *fmt, ...)
   return -1;
 }
 
-void test_new_input(struct sp_input *in);
+int sp_add_include_search_dir(struct sp_program *prog, const char *dir, bool is_system)
+{
+  return sp_comp_add_include_search_dir(&prog->comp, dir, is_system);
+}
 
 int sp_preprocess_file(struct sp_program *prog, const char *filename)
 {
-  struct sp_input *file = NULL;
-
-  struct sp_mem_pool pool;
-  sp_init_mem_pool(&pool);
-
-  struct sp_preprocessor pp;
-  sp_init_preprocessor(&pp, prog, &pool);
-
-  struct sp_ast *ast = sp_new_ast(&pool, &prog->src_file_names);
-  if (! ast) {
-    sp_set_error(prog, "out of memory");
-    goto err;
-  }
-
-  sp_string_id file_id = sp_add_ast_file_name(ast, filename);
-  if (file_id < 0) {
-    sp_set_error(prog, "out of memory");
-    goto err;
-  }
-  
-  file = sp_new_input_from_file(filename);
-  if (! file) {
-    sp_set_error(prog, "can't open '%s'", filename);
-    goto err;
-  }
-  file->file_id = file_id;
-
-  sp_set_preprocessor_io(&pp, file, ast);
-  file = NULL;
-  printf("===================================\n");
-  struct sp_pp_token tok;
-  do {
-    if (sp_next_pp_token(&pp, &tok) < 0)
-      goto err;
-    printf("%s", sp_dump_pp_token(&pp, &tok));
-    if (pp_tok_is_newline(&tok))
-      printf("\n");
-  } while (! pp_tok_is_eof(&tok));
-  printf("\n");
-  printf("===================================\n");
-
-  if (pp.macros.len > 0) {
-    printf("// macros:\n");
-    sp_dump_macros(&pp);
-    printf("===================================\n");
-  }
-
-  sp_destroy_preprocessor(&pp);
-  sp_destroy_mem_pool(&pool);
-  return 0;
-      
- err:
-  if (file)
-    sp_free_input(file);
-  sp_destroy_preprocessor(&pp);
-  sp_destroy_mem_pool(&pool);
-  return -1;
+  return sp_comp_preprocess_file(&prog->comp, filename);
 }
 
 int sp_compile_file(struct sp_program *prog, const char *filename)
 {
-  struct sp_input *file = NULL;
-
-  struct sp_mem_pool pool;
-  sp_init_mem_pool(&pool);
-
-  struct sp_preprocessor pp;
-  sp_init_preprocessor(&pp, prog, &pool);
-
-  struct sp_ast *ast = sp_new_ast(&pool, &prog->src_file_names);
+  struct sp_mem_pool ast_pool;
+  sp_init_mem_pool(&ast_pool);
+  
+  struct sp_ast *ast = sp_new_ast(&ast_pool, &prog->src_file_names);
   if (! ast) {
     sp_set_error(prog, "out of memory");
     goto err;
   }
-
-  sp_string_id file_id = sp_add_ast_file_name(ast, filename);
-  if (file_id < 0) {
-    sp_set_error(prog, "out of memory");
-    goto err;
-  }
   
-  file = sp_new_input_from_file(filename);
-  if (! file) {
-    sp_set_error(prog, "can't open '%s'", filename);
+  if (sp_comp_compile_file(&prog->comp, filename, ast) < 0)
     goto err;
-  }
-  file->file_id = file_id;
-
-  sp_set_preprocessor_io(&pp, file, ast);
-  file = NULL;
-
-  printf("===================================\n");
-  struct sp_token tok;
-  do {
-    if (sp_next_token(&pp, &tok) < 0)
-      goto err;
-    printf("%s ", sp_dump_token(&tok, &pp.token_strings));
-    if (tok_is_punct(&tok, ';') || tok_is_punct(&tok, '{') || tok_is_punct(&tok, '}'))
-      printf("\n");
-  } while (! tok_is_eof(&tok));
-  printf("\n");
-  printf("===================================\n");
-
-  sp_destroy_preprocessor(&pp);
-  sp_destroy_mem_pool(&pool);
+  
+  sp_destroy_mem_pool(&ast_pool);
   return 0;
-      
+
  err:
-  if (file)
-    sp_free_input(file);
-  sp_destroy_preprocessor(&pp);
-  sp_destroy_mem_pool(&pool);
+  sp_destroy_mem_pool(&ast_pool);
   return -1;
 }

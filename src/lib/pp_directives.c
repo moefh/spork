@@ -7,6 +7,7 @@
 #include <inttypes.h>
 
 #include "preprocessor.h"
+#include "compiler.h"
 #include "ast.h"
 #include "pp_token.h"
 #include "punct.h"
@@ -247,18 +248,16 @@ static struct sp_input *search_include_file(struct sp_preprocessor *pp, struct s
 
   // if it's an "include", search the user directories
   if (! is_system_header) {
-    for (size_t i = 0; i < pp->user_include_search_path_len; i++) {
-      const char *dir = pp->user_include_search_path[i];
-      struct sp_input *in = try_open_include_file_at(pp, loc, filename, dir, strlen(dir));
+    for (struct sp_include_search_dir *search = pp->comp->user_include_search_dirs; search != NULL; search = search->next) {
+      struct sp_input *in = try_open_include_file_at(pp, loc, filename, search->dir, strlen(search->dir));
       if (in)
         return in;
     }
   }
   
   // search the system directories
-  for (size_t i = 0; i < pp->sys_include_search_path_len; i++) {
-    const char *dir = pp->sys_include_search_path[i];
-    struct sp_input *in = try_open_include_file_at(pp, loc, filename, dir, strlen(dir));
+  for (struct sp_include_search_dir *search = pp->comp->sys_include_search_dirs; search != NULL; search = search->next) {
+    struct sp_input *in = try_open_include_file_at(pp, loc, filename, search->dir, strlen(search->dir));
     if (in)
       return in;
   }

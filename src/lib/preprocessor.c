@@ -7,22 +7,20 @@
 #include <inttypes.h>
 
 #include "preprocessor.h"
+#include "compiler.h"
 #include "input.h"
 #include "hashtable.h"
 #include "ast.h"
 #include "pp_token_list.h"
 #include "pp_macro.h"
 
-void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool)
+void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_compiler *comp, struct sp_mem_pool *pool)
 {
-  pp->prog = prog;
+  pp->prog = comp->prog;
+  pp->comp = comp;
   pp->pool = pool;
   pp->in = NULL;
   pp->ast = NULL;
-  pp->sys_include_search_path = NULL;
-  pp->sys_include_search_path_len = 0;
-  pp->user_include_search_path = NULL;
-  pp->user_include_search_path_len = 0;
   pp->at_newline = false;
   pp->last_was_space = false;
   pp->macro_args_reading_level = 0;
@@ -54,8 +52,18 @@ void sp_destroy_preprocessor(struct sp_preprocessor *pp)
   sp_destroy_mem_pool(&pp->str_join_pool);
 }
 
-void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast)
+int sp_set_preprocessor_io(struct sp_preprocessor *pp, const char *filename, struct sp_ast *ast)
 {
+  struct sp_input *in = sp_new_input_from_file(filename);
+  if (! in)
+    return sp_set_error(pp->prog, "can't open '%s'", filename);
+  sp_string_id file_id = sp_add_ast_file_name(ast, filename);
+  if (file_id < 0) {
+    sp_free_input(in);
+    return sp_set_error(pp->prog, "out of memory");
+  }
+  in->file_id = (uint16_t) file_id;
+  
   pp->in = in;
   pp->in->base_cond_level = pp->cond_level;
   pp->ast = ast;
@@ -65,6 +73,7 @@ void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, str
   pp->macro_args_reading_level = 0;
   pp->macro_expansion_level = 0;
   pp->last_was_space = false;
+  return 0;
 }
 
 int sp_set_pp_error_at(struct sp_preprocessor *pp, struct sp_src_loc loc, char *fmt, ...)
