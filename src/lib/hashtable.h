@@ -20,7 +20,11 @@ struct sp_hashtable {
 };
 
 void sp_init_ht(struct sp_hashtable *ht, struct sp_mem_pool *pool);
+void sp_destroy_ht(struct sp_hashtable *ht);
+
 struct sp_hashtable *sp_new_ht(struct sp_mem_pool *pool);
+void sp_free_ht(struct sp_hashtable *ht);
+
 void sp_dump_ht(struct sp_hashtable *ht);
 int sp_alloc_ht_len(struct sp_hashtable *ht, int len);
 

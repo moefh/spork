@@ -69,6 +69,14 @@ void sp_init_ht(struct sp_hashtable *ht, struct sp_mem_pool *pool)
   ht->entries = NULL;
 }
 
+void sp_destroy_ht(struct sp_hashtable *ht)
+{
+  sp_free(ht->pool, ht->entries);
+  ht->entries = NULL;
+  ht->cap = 0;
+  ht->len = 0;
+}
+
 struct sp_hashtable *sp_new_ht(struct sp_mem_pool *pool)
 {
   struct sp_hashtable *ht = sp_malloc(pool, sizeof(struct sp_hashtable));
@@ -80,6 +88,14 @@ struct sp_hashtable *sp_new_ht(struct sp_mem_pool *pool)
   ht->entries = NULL;
   return ht;
 }
+
+void sp_free_ht(struct sp_hashtable *ht)
+{
+  struct sp_mem_pool *pool = ht->pool;
+  sp_destroy_ht(ht);
+  sp_free(pool, ht);
+}
+
 
 void sp_dump_ht(struct sp_hashtable *ht)
 {
