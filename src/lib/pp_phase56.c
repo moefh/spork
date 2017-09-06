@@ -513,6 +513,8 @@ static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, st
     return 0;
 
   case TOK_PP_PUNCT:
+    if (tok->data.punct_id == '#')
+      return set_error_at(pp, tok->loc, "invalid character: '#'");
     ret->type = TOK_PUNCT;
     ret->data.punct_id = tok->data.punct_id;
     return 0;
@@ -523,6 +525,9 @@ static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, st
   case TOK_PP_CHAR_CONST:
     return conv_char_const(pp, tok, ret);
 
+  case TOK_PP_OTHER:
+    return set_error_at(pp, tok->loc, "invalid character: '%c'", tok->data.other);
+
   case TOK_PP_SPACE:
   case TOK_PP_NEWLINE:
   case TOK_PP_ENABLE_MACRO:
@@ -530,11 +535,10 @@ static int conv_pp_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, st
   case TOK_PP_PASTE_MARKER:
   case TOK_PP_HEADER_NAME:
   case TOK_PP_STRING:
-  case TOK_PP_OTHER:
-    return set_error(pp, "can't convert preprocessing token of type %d: '%s'", tok->type, sp_dump_pp_token(pp, tok));
+    return set_error_at(pp, tok->loc, "can't convert preprocessing token of type %d: '%s'", tok->type, sp_dump_pp_token(pp, tok));
   }
 
-  return set_error(pp, "invalid pp token type: %d", tok->type);
+  return set_error_at(pp, tok->loc, "invalid pp token type: %d", tok->type);
 }
 
 int sp_next_token(struct sp_preprocessor *pp, struct sp_token *ret)
