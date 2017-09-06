@@ -65,11 +65,12 @@ int sp_preprocess_file(struct sp_program *prog, const char *filename)
     goto err;
   }
   
-  file = sp_new_input_from_file(filename, (uint16_t) file_id, NULL);
+  file = sp_new_input_from_file(filename);
   if (! file) {
     sp_set_error(prog, "can't open '%s'", filename);
     goto err;
   }
+  file->file_id = file_id;
 
   sp_set_preprocessor_io(&pp, file, ast);
   file = NULL;
@@ -125,11 +126,12 @@ int sp_compile_file(struct sp_program *prog, const char *filename)
     goto err;
   }
   
-  file = sp_new_input_from_file(filename, (uint16_t) file_id, NULL);
+  file = sp_new_input_from_file(filename);
   if (! file) {
     sp_set_error(prog, "can't open '%s'", filename);
     goto err;
   }
+  file->file_id = file_id;
 
   sp_set_preprocessor_io(&pp, file, ast);
   file = NULL;

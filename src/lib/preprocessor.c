@@ -19,6 +19,10 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   pp->pool = pool;
   pp->in = NULL;
   pp->ast = NULL;
+  pp->sys_include_search_path = NULL;
+  pp->sys_include_search_path_len = 0;
+  pp->user_include_search_path = NULL;
+  pp->user_include_search_path_len = 0;
   pp->at_newline = false;
   pp->last_was_space = false;
   pp->macro_args_reading_level = 0;

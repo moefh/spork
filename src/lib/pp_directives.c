@@ -175,6 +175,98 @@ static int process_error(struct sp_preprocessor *pp, struct sp_src_loc loc)
 /* ================================================ */
 /* == #include ==================================== */
 
+static struct sp_input *try_open_include_file(struct sp_preprocessor *pp, struct sp_src_loc loc, const char *filename)
+{
+  //printf("-> trying '%s'\n", filename);
+  
+  struct sp_input *in = sp_new_input_from_file(filename);
+  if (! in) {
+    set_error_at(pp, loc, "can't open file '%s'", filename);
+    return NULL;
+  }
+  sp_string_id file_id = sp_add_ast_file_name(pp->ast, filename);
+  if (file_id < 0) {
+    sp_free_input(in);
+    set_error_at(pp, loc, "out of memory");
+    return NULL;
+  }
+  in->file_id = file_id;
+  return in;
+}
+
+static struct sp_input *try_open_include_file_at(struct sp_preprocessor *pp, struct sp_src_loc loc, const char *filename, const char *dir, size_t dir_len)
+{
+  if (! dir)
+    return try_open_include_file(pp, loc, filename);
+
+  char path[1024];
+
+  size_t len = 0;
+  if (len + dir_len + 1 > sizeof(path))
+    return NULL;
+  memcpy(path, dir, dir_len);
+  len += dir_len;
+  if (len > 0 && path[len-1] != '/' && path[len-1] != '\\')
+    path[len++] = '/';
+  
+  size_t file_len = strlen(filename);
+  if (len + file_len + 1 > sizeof(path))
+    return NULL;
+  memcpy(path + len, filename, file_len);
+  len += file_len;
+  path[len] = '\0';
+  return try_open_include_file(pp, loc, path);
+}
+
+static struct sp_input *search_include_file(struct sp_preprocessor *pp, struct sp_src_loc loc, const char *filename, const char *base_filename, bool is_system_header)
+{
+  // if filename is absolute, just try to open it
+  if (filename[0] == '/' || filename[0] == '\\')
+    return try_open_include_file(pp, loc, filename);
+
+  // if it's an "include", search the directory of the base file
+  if (! is_system_header) {
+    const char *base_last_slash = strrchr(base_filename, '/');
+    const char *base_last_backslash = strrchr(base_filename, '\\');
+    if (! base_last_slash || (base_last_backslash && base_last_backslash > base_last_slash))
+      base_last_slash = base_last_backslash;
+
+    const char *dir;
+    size_t dir_len;
+    if (base_last_slash) {
+      dir = base_filename;
+      dir_len = base_last_slash - base_filename;
+    } else {
+      dir = NULL;
+      dir_len = 0;
+    }
+    struct sp_input *in = try_open_include_file_at(pp, loc, filename, dir, dir_len);
+    if (in)
+      return in;
+  }
+
+  // if it's an "include", search the user directories
+  if (! is_system_header) {
+    for (size_t i = 0; i < pp->user_include_search_path_len; i++) {
+      const char *dir = pp->user_include_search_path[i];
+      struct sp_input *in = try_open_include_file_at(pp, loc, filename, dir, strlen(dir));
+      if (in)
+        return in;
+    }
+  }
+  
+  // search the system directories
+  for (size_t i = 0; i < pp->sys_include_search_path_len; i++) {
+    const char *dir = pp->sys_include_search_path[i];
+    struct sp_input *in = try_open_include_file_at(pp, loc, filename, dir, strlen(dir));
+    if (in)
+      return in;
+  }
+  
+  set_error_at(pp, loc, "can't find include file '%s'", filename);
+  return NULL;
+}
+
 static int process_include(struct sp_preprocessor *pp, struct sp_src_loc loc)
 {
   struct sp_pp_token_list *args = NULL;
@@ -201,7 +293,7 @@ static int process_include(struct sp_preprocessor *pp, struct sp_src_loc loc)
   const char *include_file = sp_get_pp_token_string(pp, tok);
 
   // remove surrounding <> or ""
-  char filename[256];
+  char filename[1024];
   size_t include_filename_len = strlen(include_file);
   if (include_filename_len < 2)
     return set_error_at(pp, loc, "invalid filename");
@@ -209,16 +301,13 @@ static int process_include(struct sp_preprocessor *pp, struct sp_src_loc loc)
     return set_error_at(pp, loc, "filename too long");
   memcpy(filename, include_file+1, include_filename_len-2);
   filename[include_filename_len-2] = '\0';
-  //bool is_system_header = (include_file[0] == '<');
-
+  bool is_system_header = (include_file[0] == '<');
+  
   // open file (TODO: search file according to 'is_system_header')
   const char *base_filename = sp_get_ast_file_name(pp->ast, sp_get_input_file_id(pp->in));
-  sp_string_id file_id = sp_add_ast_file_name(pp->ast, filename);
-  if (file_id < 0)
-    return set_error_at(pp, loc, "out of memory");
-  struct sp_input *in = sp_new_input_from_file(filename, (uint16_t) file_id, base_filename);
+  struct sp_input *in = search_include_file(pp, loc, filename, base_filename, is_system_header);
   if (! in)
-    return 0; //return set_error_at(pp, loc, "can't open '%s'", filename);
+    return -1;
   in->base_cond_level = pp->cond_level;
   in->next = pp->in;
   pp->in = in;

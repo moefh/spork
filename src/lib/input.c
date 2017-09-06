@@ -7,29 +7,8 @@
 
 #include "input.h"
 
-struct sp_input *sp_new_input_from_file(const char *filename, uint16_t file_id, const char *base_filename)
+struct sp_input *sp_new_input_from_file(const char *filename)
 {
-  char path[1024];
-  
-  /*
-   * If 'filename' is not an absolute path, base it on the directory
-   * of the parent input
-   */
-  if (base_filename && filename[0] != '/' && filename[0] != '\\') {
-    const char *last_slash = strrchr(base_filename, '/');
-    if (! last_slash)
-      last_slash = strrchr(base_filename, '\\');
-    if (last_slash) {
-      size_t base_len = last_slash + 1 - base_filename;
-      
-      if (base_len + strlen(filename) + 1 > sizeof(path))
-        return NULL;  // path is too big
-      memcpy(path, base_filename, base_len);
-      strcpy(path + base_len, filename);
-      filename = path;
-    }
-  }
-
   FILE *f = fopen(filename, "r");
   if (! f)
     return NULL;
@@ -53,7 +32,7 @@ struct sp_input *sp_new_input_from_file(const char *filename, uint16_t file_id, 
   in->next = NULL;
   in->size = size;
   in->pos = 0;
-  in->file_id = file_id;
+  in->file_id = -1;
   fclose(f);
   return in;
 

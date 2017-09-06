@@ -14,7 +14,7 @@ struct sp_input {
   unsigned char data[];
 };
 
-struct sp_input *sp_new_input_from_file(const char *filename, uint16_t file_id, const char *base_filename);
+struct sp_input *sp_new_input_from_file(const char *filename);
 void sp_free_input(struct sp_input *in);
 
 #define sp_get_input_file_id(in)  ((in)->file_id)

@@ -35,6 +35,11 @@ struct sp_preprocessor {
   struct sp_input *in;
   struct sp_pp_token_list_walker *in_tokens;
 
+  const char **sys_include_search_path;
+  size_t sys_include_search_path_len;
+  const char **user_include_search_path;
+  size_t user_include_search_path_len;
+  
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
   struct sp_mem_pool directive_pool;
