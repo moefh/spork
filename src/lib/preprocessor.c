@@ -31,9 +31,9 @@ void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, s
   sp_init_idht(&pp->macros, pool);
   sp_init_string_table(&pp->token_strings, pool);
   sp_init_buffer(&pp->tmp_buf, pool);
-  sp_init_buffer(&pp->tmp_str_buf, pool);
   sp_init_mem_pool(&pp->macro_exp_pool);
   sp_init_mem_pool(&pp->directive_pool);
+  sp_init_mem_pool(&pp->str_join_pool);
 
   sp_add_predefined_macros(pp);
 }
@@ -47,6 +47,7 @@ void sp_destroy_preprocessor(struct sp_preprocessor *pp)
   }
   sp_destroy_mem_pool(&pp->directive_pool);
   sp_destroy_mem_pool(&pp->macro_exp_pool);
+  sp_destroy_mem_pool(&pp->str_join_pool);
 }
 
 void sp_set_preprocessor_io(struct sp_preprocessor *pp, struct sp_input *in, struct sp_ast *ast)

@@ -63,6 +63,40 @@ void sp_dump_string(const char *str)
   printf("\"");
 }
 
+void dump_mem(const void *data, size_t len)
+{
+  char str[18];
+  size_t cur, str_len;
+
+  printf("* dumping %u bytes\n", (unsigned int) len);
+  
+  cur = 0;
+  while (cur < len) {
+    const uint8_t *line = (const uint8_t *) data + cur;
+    size_t i, si;
+
+    printf("| ");
+    str_len = (len - cur > 16) ? 16 : len - cur;
+    for (si = i = 0; i < str_len; i++) {
+      printf("%02x ", line[i]);
+      str[si++] = (line[i] >= 32 && line[i] < 127) ? line[i] : '.';
+      if (i == 7) {
+        printf(" ");
+        str[si++] = ' ';
+      }
+    }
+    str[si++] = '\0';
+    cur += str_len;
+
+    for (i = str_len; i < 16; i++) {
+      printf("   ");
+      if (i == 7)
+        printf(" ");
+    }
+    printf("| %-17s |\n", str);
+  }
+}
+
 int sp_utf8_len(char *str, size_t size)
 {
   int len = 0;

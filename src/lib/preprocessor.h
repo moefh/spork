@@ -38,6 +38,7 @@ struct sp_preprocessor {
   struct sp_mem_pool *pool;
   struct sp_mem_pool macro_exp_pool;
   struct sp_mem_pool directive_pool;
+  struct sp_mem_pool str_join_pool;
   struct sp_string_table token_strings;
   
   struct sp_buffer tmp_buf;
@@ -63,7 +64,6 @@ struct sp_preprocessor {
   bool init_ph6;
   struct sp_pp_token tok_ph6;
   struct sp_pp_token next_ph6;
-  struct sp_buffer tmp_str_buf;
 };
 
 void sp_init_preprocessor(struct sp_preprocessor *pp, struct sp_program *prog, struct sp_mem_pool *pool);

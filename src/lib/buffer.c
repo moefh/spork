@@ -60,13 +60,17 @@ int sp_buf_shrink_to_fit(struct sp_buffer *buf)
   return 0;
 }
 
-int sp_buf_add_string(struct sp_buffer *buf, const void *str, size_t str_size)
+int sp_buf_add_string(struct sp_buffer *buf, const char *str)
+{
+  return sp_buf_add_data(buf, str, strlen(str));
+}
+
+int sp_buf_add_data(struct sp_buffer *buf, const void *data, size_t size)
 {
   int pos = buf->size;
-  if (sp_buf_grow(buf, str_size + 1) < 0)
+  if (sp_buf_grow(buf, size) < 0)
     return -1;
-  memcpy(buf->p + pos, str, str_size);
-  buf->p[pos + str_size] = '\0';
+  memcpy(buf->p + pos, data, size);
   return pos;
 }
 

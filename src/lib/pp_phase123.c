@@ -511,7 +511,7 @@ static int read_token(struct sp_input *in, struct sp_buffer *buf, size_t *pos, b
   /* punctuation */
   buf->size = 0;
   // ensure we have enough space for any punctuation
-  if (sp_buf_add_string(buf, "...", 3) < 0)
+  if (sp_buf_add_string(buf, "1234") < 0)
     return ERR_OUT_OF_MEMORY;
   int start_pos = CUR_POS;
   for (int try_size = 3; try_size > 0; try_size--) {

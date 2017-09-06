@@ -7,6 +7,7 @@
 #include "internal.h"
 #include "token.h"
 #include "punct.h"
+#include "buffer.h"
 
 /* keywords */
 
@@ -157,53 +158,113 @@ const char *sp_dump_token(struct sp_token *tok, struct sp_string_table *tab)
     }
     return str;
     
-  case TOK_STRING:
+  case TOK_WIDE_STRING:
     {
-      const uint8_t *in = (const uint8_t *) sp_get_token_string(tok, tab);
-      strcpy(str, "\x1b[1;32m");
-      if (tok->data.str_literal.is_wide)
-        strcat(str, "L");
-      strcat(str, "\"");
-      char *out = str + strlen(str);
-      while (*in != '\0') {
-        if (*in == '"') {
-          if (out - str + 4 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = '"';
-        } else if (*in == '\n') {
-          if (out - str + 4 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = 'n';
-        } else if (*in == '\\') {
-          if (out - str + 4 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = '\\';
-        } else if (*in == '\r') {
-          if (out - str + 4 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = 'r';
-        } else if (*in == '\t') {
-          if (out - str + 4 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = 't';
-        } else if (*in < 32) {
-          if (out - str + 8 >= (int)sizeof(str)) break;
-          *out++ = '\\';
-          *out++ = 'u';
-          *out++ = '0';
-          *out++ = '0';
-          *out++ = to_hex_char((*in>>4) & 0xf);
-          *out++ = to_hex_char(   (*in) & 0xf);
+      const uint32_t *in = tok->data.wide_str_literal.data;
+      size_t len = tok->data.wide_str_literal.len;
+      size_t pos = 0;
+      struct sp_buffer out;
+      sp_init_buffer(&out, NULL);
+      sp_buf_add_string(&out, "\x1b[1;32mL\"");
+      while (pos < len) {
+        if (in[pos] == '"') {
+          sp_buf_add_string(&out, "\\\"");
+        } else if (in[pos] == '\\') {
+          sp_buf_add_string(&out, "\\\\");
+        } else if (in[pos] == '\a') {
+          sp_buf_add_string(&out, "\\a");
+        } else if (in[pos] == '\b') {
+          sp_buf_add_string(&out, "\\b");
+        } else if (in[pos] == '\n') {
+          sp_buf_add_string(&out, "\\n");
+        } else if (in[pos] == '\r') {
+          sp_buf_add_string(&out, "\\r");
+        } else if (in[pos] == '\t') {
+          sp_buf_add_string(&out, "\\t");
+        } else if (in[pos] == '\v') {
+          sp_buf_add_string(&out, "\\v");
+        } else if (in[pos] == '\0') {
+          sp_buf_add_string(&out, "\\0");
+        } else if (in[pos] < 32 || (in[pos] >= 127 && in[pos] <= 0xffff)) {
+          sp_buf_add_string(&out, "\\u");
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>12) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 8) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 4) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]    ) & 0xf));
+        } else if (in[pos] > 0xffff) {
+          sp_buf_add_string(&out, "\\U");
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>28) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>24) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>20) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>16) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>12) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 8) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 4) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]    ) & 0xf));
         } else {
-          if (out - str + 3 >= (int)sizeof(str)) break;
-          *out++ = *in;
+          sp_buf_add_byte(&out, in[pos]);
         }
-        in++;
+        pos++;
       }
-      *out++ = '"';
-      *out++ = '\0';
-      if (out - str + strlen("\x1b[0m") < (int)sizeof(str))
-        strcat(str, "\x1b[0m");
+      sp_buf_add_string(&out, "\"\x1b[0m");
+      sp_buf_add_byte(&out, '\0');
+      if (out.p) {
+        strncpy(str, out.p, sizeof(str));
+        str[sizeof(str)-1] = '\0';
+      } else {
+        str[0] = '\0';
+      }
+      sp_destroy_buffer(&out);
+    }
+    return str;
+
+  case TOK_CHAR_STRING:
+    {
+      const uint8_t *in = (const uint8_t *) tok->data.char_str_literal.data;
+      size_t len = tok->data.char_str_literal.len;
+      size_t pos = 0;
+      struct sp_buffer out;
+      sp_init_buffer(&out, NULL);
+      sp_buf_add_string(&out, "\x1b[1;32m\"");
+      while (pos < len) {
+        if (in[pos] == '"') {
+          sp_buf_add_string(&out, "\\\"");
+        } else if (in[pos] == '\\') {
+          sp_buf_add_string(&out, "\\\\");
+        } else if (in[pos] == '\a') {
+          sp_buf_add_string(&out, "\\a");
+        } else if (in[pos] == '\b') {
+          sp_buf_add_string(&out, "\\b");
+        } else if (in[pos] == '\n') {
+          sp_buf_add_string(&out, "\\n");
+        } else if (in[pos] == '\r') {
+          sp_buf_add_string(&out, "\\r");
+        } else if (in[pos] == '\t') {
+          sp_buf_add_string(&out, "\\t");
+        } else if (in[pos] == '\v') {
+          sp_buf_add_string(&out, "\\v");
+        } else if (in[pos] == '\0') {
+          sp_buf_add_string(&out, "\\0");
+        } else if (in[pos] < 32) {
+          sp_buf_add_string(&out, "\\u");
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>>12) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 8) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]>> 4) & 0xf));
+          sp_buf_add_byte(&out, to_hex_char((in[pos]    ) & 0xf));
+        } else {
+          sp_buf_add_byte(&out, in[pos]);
+        }
+        pos++;
+      }
+      sp_buf_add_string(&out, "\"\x1b[0m");
+      sp_buf_add_byte(&out, '\0');
+      if (out.p) {
+        strncpy(str, out.p, sizeof(str));
+        str[sizeof(str)-1] = '\0';
+      } else {
+        str[0] = '\0';
+      }
+      sp_destroy_buffer(&out);
     }
     return str;
   }

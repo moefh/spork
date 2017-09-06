@@ -8,7 +8,8 @@ enum sp_token_type {
 
   TOK_KEYWORD,
   TOK_IDENTIFIER,
-  TOK_STRING,
+  TOK_CHAR_STRING,
+  TOK_WIDE_STRING,
   TOK_PUNCT,
   TOK_INT_CONST,
   TOK_FLOAT_CONST,
@@ -62,11 +63,16 @@ struct sp_token {
   struct sp_src_loc loc;
   union {
     sp_string_id str_id;
+    int punct_id;
     enum sp_keyword_type keyword_type;
     struct {
-      sp_string_id id;
-      bool is_wide;
-    } str_literal;
+      char *data;
+      size_t len;
+    } char_str_literal;
+    struct {
+      uint32_t *data;
+      size_t len;
+    } wide_str_literal;
     struct {
       uint64_t n;
       uint8_t flags;  // TOK_INT_FLAG_xxx
@@ -79,7 +85,6 @@ struct sp_token {
       int32_t ch;
       bool is_wide;
     } char_const;
-    int punct_id;
   } data;
 };
 
