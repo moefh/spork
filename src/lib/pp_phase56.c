@@ -266,16 +266,22 @@ static int conv_string(struct sp_preprocessor *pp, struct sp_src_loc loc, const 
         if ((str[1] & 0xc0) != 0x80)
           goto err_bad_utf8;
         val = ((str[0] & 0x1f) << 6) | (str[1] & 0x3f);
+        if (val <= 0x7f)
+          goto err_bad_utf8;
         str += 2;
       } else if ((str[0] & 0xf0) == 0xe0) {
         if ((str[1] & 0xc0) != 0x80 || (str[2] & 0xc0) != 0x80)
           goto err_bad_utf8;
         val = ((str[0] & 0x0f) << 12) | ((str[1] & 0x3f) << 6) | (str[2] & 0x3f);
+        if (val <= 0x7ff)
+          goto err_bad_utf8;
         str += 3;
       } else if ((str[0] & 0xf8) == 0xf0) {
         if ((str[1] & 0xc0) != 0x80 || (str[2] & 0xc0) != 0x80 || (str[3] & 0xc0) != 0x80)
           goto err_bad_utf8;
         val = ((str[0] & 0x07) << 18) | ((str[1] & 0x3f) << 12) | ((str[2] & 0x3f) << 6) | (str[3] & 0x3f);
+        if (val <= 0xffff || val > 0x10ffff)
+          goto err_bad_utf8;
         str += 4;
       } else
         goto err_bad_utf8;
