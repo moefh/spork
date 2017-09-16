@@ -614,6 +614,7 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
 
   get_input_location(pp, pos, &tok->loc);
   tok->macro_dead = false;
+  tok->paste_dead = false;
 
   // EOF
   if (type == TOK_PP_EOF) {
@@ -656,6 +657,143 @@ static int next_token(struct sp_preprocessor *pp, struct sp_pp_token *tok, bool 
   return 0;
 }
 
+static bool skip_hex_quad(const char **pstr)
+{
+  const char *str = *pstr;
+  if (IS_HEX_DIGIT(str[0]) && IS_HEX_DIGIT(str[1]) && IS_HEX_DIGIT(str[2]) && IS_HEX_DIGIT(str[3])) {
+    (*pstr) += 4;
+    return true;
+  }
+  return false;
+}
+
+static bool skip_escape_sequence(const char **pstr)
+{
+  const char *str = *pstr;
+  if (*str++ != '\\')
+    return false;
+  
+  if (*str == '\'' || *str == '"' || *str == '?' || *str == '\\' || *str == 'a' || *str == 'b'
+      || *str == 'f' || *str == 'n' || *str == 'r' || *str == 't' || *str == 'v') {
+    str++;
+  } else if (IS_OCT_DIGIT(*str)) {
+    int n = 0;
+    do {
+      n++;
+      str++;
+    } while (IS_OCT_DIGIT(*str) && n < 3);
+  } else if (*str == 'x') {
+    str++;
+    if (! IS_HEX_DIGIT(*str))
+      return false;
+    do {
+      str++;
+    } while (IS_HEX_DIGIT(*str));
+  } else if (*str == 'u') {
+    str++;
+    if (! skip_hex_quad(&str))
+      return false;
+  } else if (*str == 'U') {
+    str++;
+    if (! skip_hex_quad(&str) || ! skip_hex_quad(&str))
+      return false;
+  } else {
+    return false;
+  }
+  
+  *pstr = str;
+  return true;
+}
+
+static bool check_pp_char_const(const char *str)
+{
+  if (*str == 'L')
+    str++;
+  if (*str != '\'')
+    return false;
+  str++;
+  while (*str != '\'') {
+    if (*str == '\n')
+      return false;
+    if (*str == '\\') {
+      if (! skip_escape_sequence(&str))
+        return false;
+    } else {
+      str++;
+    }
+  }
+  str++;
+  return (*str == '\0');
+}
+
+static bool check_string(const char *str)
+{
+  if (*str == 'L')
+    str++;
+  if (*str != '"')
+    return false;
+  str++;
+  while (*str != '"') {
+    if (*str == '\n')
+      return false;
+    if (*str == '\\') {
+      if (! skip_escape_sequence(&str))
+        return false;
+    } else {
+      str++;
+    }
+  }
+  str++;
+  return (*str == '\0');
+}
+
+static bool check_pp_number(const char *str)
+{
+  while (*str != '\0') {
+    if (*str == 'e' || *str == 'E' || *str == 'p' || *str == 'P') {
+      if (str[1] == '-')
+        str++;
+      str++;
+    } else if (*str == '.' || IS_DIGIT(*str) || IS_ALPHA(*str)) {
+      str++;
+    } else if (*str == '\\' && str[1] == 'u') {
+      str += 2;
+      if (! skip_hex_quad(&str))
+        return false;
+    } else if (*str == '\\' && str[1] == 'U') {
+      str += 2;
+      if (! skip_hex_quad(&str) || ! skip_hex_quad(&str))
+        return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool check_identifier(const char *str)
+{
+  if (IS_DIGIT(*str))
+    return false;
+
+  while (*str != '\0') {
+    if (IS_ALNUM(*str)) {
+      str++;
+    } else if (*str == '\\' && str[1] == 'u') {
+      str += 2;
+      if (! skip_hex_quad(&str))
+        return false;
+    } else if (*str == '\\' && str[1] == 'U') {
+      str += 2;
+      if (! skip_hex_quad(&str))
+        return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp_pp_token *ret)
 {
   int punct_id = sp_get_punct_id(str);
@@ -665,9 +803,9 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
     return 0;
   }
 
-  // TODO: check correctness of produced token
-  
-  if (str[0] == '.' || IS_DIGIT(str[0])) {
+  if (IS_DIGIT(str[0]) || (str[0] == '.' && IS_DIGIT(str[1]))) {
+    if (! check_pp_number(str))
+      goto err;
     ret->type = TOK_PP_NUMBER;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
@@ -676,6 +814,8 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
   }
 
   if (str[0] == '\'' || (str[0] == 'L' && str[1] == '\'')) {
+    if (! check_pp_char_const(str))
+      goto err;
     ret->type = TOK_PP_CHAR_CONST;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
@@ -684,6 +824,8 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
   }
   
   if (str[0] == '"' || (str[0] == 'L' && str[1] == '"')) {
+    if (! check_string(str))
+      goto err;
     ret->type = TOK_PP_STRING;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
@@ -692,6 +834,8 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
   }
 
   if (IS_ALPHA(str[0])) {
+    if (! check_identifier(str))
+      goto err;
     ret->type = TOK_PP_IDENTIFIER;
     ret->data.str_id = sp_add_string(&pp->token_strings, str);
     if (ret->data.str_id < 0)
@@ -705,6 +849,7 @@ int sp_string_to_pp_token(struct sp_preprocessor *pp, const char *str, struct sp
     return 0;
   }
 
+ err:
   set_error(pp, "pasting doesn't produce valid token: '%s'", str);
   return -1;
 }

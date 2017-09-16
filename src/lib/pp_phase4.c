@@ -144,7 +144,10 @@ static int paste_tokens(struct sp_preprocessor *pp, struct sp_pp_token *tok1, st
   if (token_to_string(pp, tok2, str + str_len, sizeof(str) - str_len, false) < 0)
     return -1;
 
-  return sp_string_to_pp_token(pp, str, ret);
+  if (sp_string_to_pp_token(pp, str, ret) < 0)
+    return -1;
+  ret->paste_dead = true;
+  return 0;
 }
 
 static int stringify_list(struct sp_preprocessor *pp, struct sp_pp_token_list *list, struct sp_pp_token *ret)
@@ -424,7 +427,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
     }
 
     // ## parameter
-    if (macro->is_function && pp_tok_is_punct(t, PUNCT_HASHES)) {
+    if (macro->is_function && pp_tok_is_punct(t, PUNCT_HASHES) && ! t->paste_dead) {
       struct sp_pp_token *next = sp_peek_nonblank_pp_token_from_list(&w);
       if (! next) {
         set_error(pp, "'##' must not be the end of the macro body");
@@ -498,14 +501,14 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
         struct sp_pp_token_list_pos save_pos = sp_get_pp_token_list_pos(&w);
         struct sp_pp_token *next;
         if (sp_read_nonblank_pp_token_from_list(&w, &next)) {
-          if (pp_tok_is_punct(next, PUNCT_HASHES)) {
+          if (pp_tok_is_punct(next, PUNCT_HASHES) && ! next->paste_dead) {
             struct sp_pp_token *second;
             struct sp_pp_token pasted;
           paste_again:
             if (sp_read_nonblank_pp_token_from_list(&w, &second)) {
               if (paste_tokens(pp, t, second, &pasted) < 0)
                 goto err;
-              //printf("pasted: '%s'", sp_dump_pp_token(pp, &pasted));
+              //printf("<pasted: '%s'>", sp_dump_pp_token(pp, &pasted));
               next = sp_peek_nonblank_pp_token_from_list(&w);
               if (next && pp_tok_is_punct(next, PUNCT_HASHES)) {
                 sp_read_nonblank_pp_token_from_list(&w, &next); // skip '##'
@@ -535,7 +538,7 @@ static struct sp_pp_token_list *expand_macro(struct sp_preprocessor *pp, struct 
             goto err;
           }
           struct sp_pp_token stringified;
-          //printf("<%s> stringifying ", sp_get_macro_name(macro, pp)); sp_dump_pp_token_list(arg, pp); printf("\n");
+          //printf("<%s stringifying ", sp_get_macro_name(macro, pp)); sp_dump_pp_token_list(arg, pp); printf(">");
           if (stringify_list(pp, arg, &stringified) < 0)
             goto err;
           if (sp_append_pp_token(out, &stringified) < 0)

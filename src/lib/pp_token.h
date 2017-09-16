@@ -24,6 +24,7 @@ struct sp_pp_token {
   enum sp_pp_token_type type;
   struct sp_src_loc loc;
   bool macro_dead;
+  bool paste_dead;
   union {
     sp_string_id str_id;
     int punct_id;
