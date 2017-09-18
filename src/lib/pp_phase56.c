@@ -112,6 +112,10 @@ static int32_t get_u_escape_char(const unsigned char **p, int len)
   }
   if (len != -1 || ret > INT32_MAX || ret > 0x10ffff)
     return -1;
+  if (ret < 0xa0 && ret != 0x24 && ret != 0x40 && ret != 0x60)
+    return -1;
+  if (ret >= 0xd800 && ret <= 0xdfff)
+    return -1;
   *p = cur;
   return (int32_t) ret;
 }
